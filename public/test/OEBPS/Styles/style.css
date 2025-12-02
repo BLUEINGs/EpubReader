@@ -1,0 +1,1075 @@
+/* 1 默认格式 */
+
+/* 1.1 标题格式 */
+
+h1 {
+  /*章节标题1，较大字号*/
+  font-size: 1.5em;
+  line-height: 120%;
+  text-align: center;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+h2 {
+  /*章节标题2，较小字号*/
+  font-size: 1.25em;
+  line-height: 120%;
+  text-align: center;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+h3 {
+  /*建议二级标题用*/
+  font-size: 1em;
+  line-height: 120%;
+  text-align: center;
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+.ph4, .pius1, .pius2, h4 {
+  /*居中标题，可用p标签*/
+  font-size: 1.25em;
+  font-weight: bold;
+  text-align: center;
+  margin: 1.5em 0 1.25em 0;
+  text-indent: 0;
+  duokan-text-indent: 0;
+  font-family: illus5;
+}
+
+/* 1.2 段落格式 */
+
+p {
+  margin: 0 0 0.5em;
+  text-indent: 2em;
+  line-height: 1.2em;
+}
+
+/* 1.3 图片格式 */
+
+/* 
+
+  封面格式：  
+  <div class="cover">
+    <img alt="cover" class="coverborder" src="../Images/cover.jpg"/>
+  </div>
+
+  插图格式：
+  <div class="illus duokan-image-single">
+    <img alt="col01" src="../Images/col01.jpg"/>
+  </div>
+  
+  注意：如果需要区别处理彩插与文内黑白插，请自行调整。
+
+  */
+
+img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.illus {
+  text-indent: 0;
+  text-align: center;
+  /*此处自行调整插图前后缩进*/
+  margin: 0 0 0 0;
+}
+
+.cover {
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  text-align: center;
+}
+
+.coverborder {
+  border-style: none solid none solid;
+  /*封面边框颜色，可自行调整*/
+  border-color: #000;
+  border-width: 1px;
+}
+
+/* 1.4 制作信息格式 */
+
+/* 应用举例：    
+
+      <p class="meg">制作信息</p>
+
+      <p class="message">——————————</p>
+
+      <p class="message">作者：时雨沢恵一</p>
+
+      <p class="message">插画：黒星红白</p>
+
+      <p class="message">图源：轻书架录入组</p>
+
+      <p class="message">录入：大苏打、北原乄春希</p>
+
+      <p class="message">制作：轻书架EPUB组</p>
+
+      <p class="message">轻书架：www.acgdmzy.com</p>
+
+      <p class="message">仅供个人学习交流，禁做商业用途</p>
+
+      <p class="message">下载后请在24小时内删除，录入者不负担任何责任</p>
+
+      <p class="message">请尊重翻译、扫图、录入、校对的辛勤劳动，转载请保留信息</p>
+
+      <p class="message">转载请保留完整的资讯，否则往后一律禁止</p>
+
+      <p class="message">——————————</p>
+
+*/
+
+.message {
+  text-indent: 0;
+  duokan-text-indent: 0;
+  line-height: 1.2em;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+}
+
+.meg {
+  font-size: 1.3em;
+  line-height: 1.3em;
+  margin: 0.5em 0 0;
+  text-indent: 0;
+  duokan-text-indent: 0;
+}
+
+/* 1.5目录相关*/
+
+.contents{
+	text-indent: 0em;
+	text-align: left;
+    padding: 0 0 0.2em 0;
+	font-size: 2em;
+}
+.mulu{
+	text-indent: 0em;
+	text-align: left;
+	line-height: 1.1em;
+    padding: 0.35em 0 0.35em 0;
+}
+
+.back-1{
+	background: #CEEAED;
+}
+.back-2{
+	background-image: url(../Images/chara.png);
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-attachment: fixed;
+	background-size: 100% auto;
+	background-color: #FFFFFF;
+}
+
+
+/* 2 文本格式相关1-宽度、字号与浮动 */
+
+/* 2.1 字号大小 */
+
+.em05 {
+  font-size: 0.5em;
+}
+
+.em06 {
+  font-size: 0.6em;
+}
+
+.em07 {
+  font-size: 0.7em;
+}
+
+.em08 {
+  font-size: 0.8em;
+}
+
+.em09 {
+  font-size: 0.9em;
+}
+
+.em11 {
+  font-size: 1.1em;
+}
+
+.em12 {
+  font-size: 1.2em;
+}
+
+.em13 {
+  font-size: 1.3em;
+}
+
+.em14 {
+  font-size: 1.4em;
+}
+
+.em15 {
+  font-size: 1.5em;
+}
+
+.em16 {
+  font-size: 1.6em;
+}
+
+.em17 {
+  font-size: 1.7em;
+}
+
+.em18 {
+  font-size: 1.8em;
+}
+
+.em19 {
+  font-size: 1.9em;
+}
+
+.em20 {
+  font-size: 2em;
+}
+
+.em21 {
+  font-size: 2.1em;
+}
+
+.em22 {
+  font-size: 2.2em;
+}
+
+.em23 {
+  font-size: 2.3em;
+}
+
+.em24 {
+  font-size: 2.4em;
+}
+
+.em25 {
+  font-size: 2.5em;
+}
+
+.em26 {
+  font-size: 2.6em;
+}
+
+.em27 {
+  font-size: 2.7em;
+}
+
+.em28 {
+  font-size: 2.8em;
+}
+
+.em29 {
+  font-size: 2.9em;
+}
+
+.em30 {
+  font-size: 3em;
+}
+
+.em31 {
+  font-size: 3.1em;
+}
+
+.em32 {
+  font-size: 3.2em;
+}
+
+.em33 {
+  font-size: 3.3em;
+}
+
+.em34 {
+  font-size: 3.4em;
+}
+
+.em35 {
+  font-size: 3.5em;
+}
+
+.em40 {
+  font-size: 4em;
+}
+
+/* 2.2 宽度相关 */
+
+.wh05 {
+  width: 0.5em;
+}
+
+.wh10 {
+  width: 1em;
+}
+
+.wh15 {
+  width: 1.5em;
+}
+
+.wh20 {
+  width: 2em;
+}
+
+.wh25 {
+  width: 2.5em;
+}
+
+.wh30 {
+  width: 3em;
+}
+
+.wh35 {
+  width: 3.5em;
+}
+
+.wh40 {
+  width: 4em;
+}
+
+/* 2.3 浮动相关 */
+
+.right {
+  /*居右*/
+  text-indent: 0;
+  text-align: right;
+}
+
+.left {
+  /*居左*/
+  text-indent: 0;
+  text-align: left;
+}
+
+.center {
+  /*居中*/
+  text-indent: 0;
+  text-align: center;
+}
+
+.fl {
+  /*左浮动*/
+  float: left;
+}
+
+.fr {
+  /*右浮动*/
+  float: right;
+}
+
+.cl {
+  /*在左侧不允许浮动元素。*/
+  clear: left;
+}
+
+.cr {
+  /*在右侧不允许浮动元素。*/
+  clear: right;
+}
+
+.cb {
+  /*在左右两侧均不允许浮动元素*/
+  clear: both;
+}
+
+/* 3 文本格式相关2 */
+
+/* 3.1 段落选项 */
+
+.zin {
+  /*首行缩进0字符*/
+  text-indent: 0;
+  duokan-text-indent: 0;
+}
+
+.bold {
+  /*加粗*/
+  font-weight: bold;
+}
+
+.ita {
+  /*倾斜*/
+  font-style: italic;
+}
+
+.dot, .em-dot {
+  /*下标着重*/
+  text-emphasis-style: filled dot;
+  text-emphasis-color: #000;
+  text-emphasis-position: under;
+  -webkit-text-emphasis-color: #000;
+  -webkit-text-emphasis-position: under;
+  -webkit-text-emphasis: filled dot;
+}
+
+.rotate {
+  /*旋转*/
+  -webkit-transform: rotate(15deg);
+  transform: rotate(15deg);
+}
+
+.dash-break {
+  /*允许在单词内换行，多看阅读器不支持*/
+  word-break: break-all;
+  word-wrap: break-word;
+}
+
+.author {
+  /*常用于后记中作者落款*/
+  font-size: 1.2em;
+  text-align: right;
+  font-weight: bold;
+  font-style: italic;
+  margin-right: 1em;
+}
+
+.no-d {
+  /*常用于取消链接的下划线*/
+  text-decoration: none;
+}
+
+.lh {
+  /*行高1em，段落格式化用*/
+  line-height: 1em;
+}
+
+.m0 {
+  /*外边距归零，段落格式化用*/
+  margin: 0;
+}
+
+.p0 {
+  /*内边距归零，段落格式化用*/
+  padding: 0;
+}
+
+a {
+  /*主要针对目录的格式化*/
+  text-decoration: none;
+  color: black;
+}
+
+/* 3.2 表格选项 */
+
+.vt {
+  /*把元素的顶端与行中最高元素的顶端对齐*/
+  vertical-align: top;
+}
+
+.vb {
+  /*把元素的顶端与行中最低的元素的顶端对齐*/
+  vertical-align: bottom;
+}
+
+.vm {
+  /*把此元素放置在父元素的中部（垂直居中）*/
+  vertical-align: middle;
+}
+
+.bc {
+  /*表格边框合并为一个单一的边框，无间隔*/
+  border-collapse: collapse;
+}
+
+/* 3.3 注释选项 */
+
+/*  注释举例
+
+<p>「胆小鬼<a class="duokan-footnote" epub:type="noteref" href="#note1" id="note_ref1"><sup><img alt="note" class="footnote" src="../Images/note.png"/></sup></a>？」</p>
+
+    <aside epub:type="footnote" id="note1">
+      <a href="#note_ref1"></a> 
+      <ol class="duokan-footnote-content" style="list-style:none">
+        <li class="duokan-footnote-item" id="note1" value="1">注：坂町近次郎名字中的「chikin」音近「chicken」，亦即胆小鬼之意。</li>
+      </ol>
+    </aside>
+
+*/
+.footnote{
+    height: 1.2em!important;
+    width: auto;
+    border: 0;
+}
+
+.duokan-footnote{
+    height: 1.2em!important;
+    width: auto;
+    border: 0;
+}
+
+/*如果启用了注释替换的js文件，替换后的文字可在此处设置
+.duokan-footnote {
+    font-size:0.85em;
+    border: 0;
+    color:#000000;
+    font-weight:bold;
+    font-family: ;
+}
+*/
+
+.duokan-footnote-item {
+  /* 注释内容设置 */
+  text-indent: 0;
+  /* 更改注释字体 */
+  font-family: "DK-SONGTI";
+  /* 更改注释内容颜色 */
+  color: #960014;
+  text-shadow: 0em 0em 0.1em #FFAD7C;/*这里调整注释文字的阴影颜色*/
+  font-weight: bold;
+  font-size: 0.9em;
+  text-align: justify;
+  padding: 0 8%;
+}
+
+sup{
+	font-size: 0.75em;
+	line-height: 1.2;
+	vertical-align: super!important;
+}
+
+ol {
+  /* 取消注释内容默认的缩进 */
+  padding: 0;
+}
+
+/* 3.4 常用颜色 */
+
+.red {
+  color: red;
+}
+
+.green {
+  color: #0f0;
+}
+
+.blue {
+  color: #00f;
+}
+
+.black {
+  color: #000;
+}
+
+.white {
+  color: #fff;
+}
+
+/* 3.5 阴影 */
+
+.shadow1 {
+  /* 请自行根据自身需要添加或修改 */
+  text-shadow: 0 0 2px #000;
+  text-shadow: 0 0 0.1em #000;
+}
+
+/* 3.6 字体 */
+
+/* 根据自身情况进行修改 */
+
+@font-face {
+  font-family: "title";
+  src: url("../Fonts/title.ttf"); 
+}
+
+.title {
+  font-family: title;
+}
+
+@font-face {
+  font-family: "illus1";
+  src: url("../Fonts/illus1.ttf"); 
+}
+
+.illus1 {
+  font-family: illus1;
+}
+
+@font-face {
+  font-family: "illus2";
+  src: url("../Fonts/illus2.ttf"); 
+}
+
+.illus2 {
+  font-family: illus2;
+}
+
+@font-face {
+  font-family: "illus5";
+  src: url("../Fonts/illus5.ttf"); 
+}
+
+.illus5 {
+  font-family: illus5;
+}
+/* 4 个人模板添加 */
+
+/* 暗の空自用个人模板 */
+
+/*目录背景*/
+
+.bg{
+   background-image: url(../Images/illus-contents.jpg);
+   background-repeat:no-repeat;
+   background-position:bottom center;
+   background-size: 100% 100%;
+}
+
+.bg1{
+   background-color: #fff5b4;
+}
+
+.bg2{
+   background-color: #FFF;
+}
+/*title相关*/
+
+.tco1{
+	color: #EA6072;
+}
+.tco2{
+	color: #32B7E6;
+}
+.tco3{
+	color: #FFF;
+	text-shadow: 1px 1px 1px #000;
+}
+.tco4{
+	color: #FFF;
+	text-shadow: 1px 1px 2px #32B7E6;
+}
+.tco5{
+	color: #6D0000;
+}
+.tco6{
+	color: #1BB2A7;
+}
+.tco7{
+	color: #FFF;
+	text-shadow: 0px 0px 3px #20B1E8;
+}
+.tbox1{
+    color: #FFF;
+    line-height: 1em;
+    width: 2em;
+    height: 2em;
+    padding: 1px;
+	margin: 1.2em auto 2.5em auto;
+    background-image: url(../Images/t1.png);
+    background-repeat: no-repeat;
+    background-position: top center;
+    background-size: cover;
+}
+/*彩页*/
+.ico0{
+	color: #fff5b4;
+	text-shadow: 2px 2px 1px #d79b6e;
+}
+.ico1{
+	color: #F4ACC8;
+}
+.ico2{
+	color: #ed862a;
+}
+.ico3{
+	color: #C9446B;
+}
+.ico4{
+	color: #FFF;
+	text-shadow: 0px 0px 3px #6456A3;
+}
+.ico5{
+	color: #E70012;
+}
+.ico6{
+	color: #00ABEB;
+}
+.ibox1 {
+    background-color: #FAFAA0;
+	color: #FF0000;
+    line-height: 1em;
+}
+.ibox2 {
+    background-color: #000;
+	color: #FFF;
+    border-style: solid;
+    border-width: 0px;
+    border-radius: 0px;
+    line-height: 1em;
+}
+.ibox3 {
+    background-color: #32B7E6;
+	color: #FFF;
+    border-style: solid;
+    border-width: 0px;
+    border-radius: 0px;
+    line-height: 1em;
+}
+
+/*盒子 随取随用
+.box{
+	width: 2em;
+	height: 2em;
+	border: 5px solid #000000;
+	border-style: solid;
+	border-color: #000000;
+	border-width: 2px;
+	border-radius: 50px;
+   	padding: 0;
+	margin: 0;
+	background-color: #000000;
+	color: #ffffff;
+	text-shadow: 0px 0px 3px #000000;
+	box-shadow: 0px 0px 3px #000000;
+}
+
+border-style: 上边框取值 右边框取值 下边框取值 左边框取值; 
+none 定义无边框。
+dotted 定义点状边框。
+dashed 定义虚线。
+solid 定义实线。
+double 定义双线。
+
+box-shadow: h-shadow v-shadow blur spread(阴影的尺寸) color inset(改为内部阴影);
+*/
+
+
+/* 5 书籍独有样式添加 */
+
+/* 制作特定书籍额外添加 */
+.jp{
+	width:3em;
+	height:3em;
+}
+
+.jbox01{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#5AA0E1;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:0 8px 8px 8px;
+	box-shadow:5px 5px 5px #888888;
+	margin-left:0.8em;
+	margin-top:0.8em;
+}
+.jbox01:before {
+  content: "";
+  position: absolute;
+  right: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-right: 0.8em solid #5AA0E1;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox02{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#5AA0E1;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:8px 0 8px 8px;
+	box-shadow:-5px 5px 5px #888888;
+	margin-right:0.8em;
+	margin-top:0.8em;
+}
+.jbox02:before {
+  content: "";
+  position: absolute;
+  left: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-left: 0.8em solid #5AA0E1;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox03{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#6EB478;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:0 8px 8px 8px;
+	box-shadow:5px 5px 5px #888888;
+	margin-left:0.8em;
+	margin-top:0.8em;
+}
+.jbox03:before {
+  content: "";
+  position: absolute;
+  right: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-right: 0.8em solid #6EB478;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox04{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#6EB478;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:8px 0 8px 8px;
+	box-shadow:8px 5px 5px #888888;
+	margin-right:0.8em;
+	margin-top:0.8em;
+}
+.jbox04:before {
+  content: "";
+  position: absolute;
+  left: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-left: 0.8em solid #6EB478;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox05{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#E682D2;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:0 8px 8px 8px;
+	box-shadow:5px 5px 5px #888888;
+	margin-left:0.8em;
+	margin-top:0.8em;
+}
+.jbox05:before {
+  content: "";
+  position: absolute;
+  right: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-right: 0.8em solid #E682D2;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox06{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#E682D2;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:8px 0 8px 8px;
+	box-shadow:8px 5px 5px #888888;
+	margin-right:0.8em;
+	margin-top:0.8em;
+}
+.jbox06:before {
+  content: "";
+  position: absolute;
+  right: 0; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-left: 0.8em solid #E682D2;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox07{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#FFD200;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:0 8px 8px 8px;
+	box-shadow:5px 5px 5px #888888;
+	margin-left:0.8em;
+	margin-top:0.8em;
+}
+.jbox07:before {
+  content: "";
+  position: absolute;
+  right: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-right: 0.8em solid #FFD200;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox08{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#FFD200;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:8px 0 8px 8px;
+	box-shadow:8px 5px 5px #888888;
+	margin-right:0.8em;
+	margin-top:0.8em;
+}
+.jbox08:before {
+  content: "";
+  position: absolute;
+  left: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-left: 0.8em solid #FFD200;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox09{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#FF6F00;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:0 8px 8px 8px;
+	box-shadow:5px 5px 5px #888888;
+	margin-left:0.8em;
+	margin-top:0.8em;
+}
+.jbox09:before {
+  content: "";
+  position: absolute;
+  right: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-right: 0.8em solid #FF6F00;
+  border-bottom: 1em solid transparent;
+}
+
+.jbox10{
+	position: relative;
+	width: 70%;
+	height: auto;
+	background-color:#FF6F00;
+	color:#fff;
+	padding:0.3em 1em 0.3em 1em;
+	border-radius:8px 0 8px 8px;
+	box-shadow:8px 5px 5px #888888;
+	margin-right:0.8em;
+	margin-top:0.8em;
+}
+.jbox10:before {
+  content: "";
+  position: absolute;
+  left: 100%; 
+  top: 0;
+  border-top: 0em solid transparent;
+  border-left: 0.8em solid #FF6F00;
+  border-bottom: 1em solid transparent;
+}
+
+.cbox1{
+    color: #000;
+    width: 7em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 0em auto 0 auto;
+	transform: rotate(-5deg);
+	line-height: 1.8em;
+}
+.cbox2{
+    color: #000;
+    width: 5em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 0em 0 0 0;
+	transform: rotate(-4deg);
+    line-height: 1.5em;
+}
+.cbox3{
+    color: #000;
+    width: 7em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 0em 0 0 -0.5em;
+	transform: rotate(8deg);
+	line-height: 1.8em;
+}
+.cbox4{
+    color: #000;
+    width: 6em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 2em 0 0 0;
+	transform: rotate(10deg);
+	line-height: 1.5em;
+}
+.cbox5{
+    color: #000;
+    width: 7em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 2em 0 0 0;
+	transform: rotate(-2deg);
+	line-height:1.8em;
+}
+.cbox6{
+    color: #000;
+    width: 5em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 2em 0 0 0;
+	transform: rotate(15deg);
+	line-height: 1.5em;
+}
+.cbox7{
+    color: #000;
+    width: 7em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 1.8em 0 0 1.5em;
+	transform: rotate(-10deg);
+	line-height: 1.8em;
+}
+.cbox8{
+    color: #000;
+    width: 5em;
+    height: auto;
+    background-color: #FFF;
+   	padding: 0.5em;
+	margin: 0em 0 0 0;
+	transform: rotate(15deg);
+	line-height: 1.5em;
+}
+.cp{
+	width: 4em;
+	height: auto;
+}
+
+.cp1{
+	width: 5em;
+	height: auto;
+}
+
+.cp2{
+	width: 3.5em;
+	height: auto;
+}
+
+.cp3{
+	width: 5.5em;
+	height: auto;
+}
+.contbox {
+	width:22em;
+	height:auto;
+	margin: 0 auto 0 auto;
+}

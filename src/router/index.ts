@@ -22,6 +22,12 @@ const router = createRouter({
       name:'EpubReader',
       // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
       component: () => import('../views/EpubReader.vue')
+    },
+    {
+      path:'/reader2',
+      name:'EpubReader2',
+      // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
+      component: () => import('../views/EpubReader2.vue')
     }
   ],
 })

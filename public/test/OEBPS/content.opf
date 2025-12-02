@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>败犬女主太多了！ 07</dc:title>
+    <dc:creator opf:file-as="暗の空" opf:role="aut">雨森たきび</dc:creator>
+    <dc:language>zh</dc:language>
+    <dc:subject>轻小说</dc:subject>
+    <dc:description>本ePub由『暗の空』制作</dc:description>
+    <dc:date opf:event="modification">2024-08-15</dc:date>
+    <meta content="1.9.20.X1" name="Sigil version"/>
+    <dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:4c54f950-f41b-4eaa-86d3-9216b24f2e3a</dc:identifier>
+    <meta property="ibooks:specified-fonts">true</meta>
+    <meta name="cover" content="cover.jpg"/>
+  </metadata>
+  <manifest>
+    <item id="Section000.xhtml" href="Text/Section000.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section001.xhtml" href="Text/Section001.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section002.xhtml" href="Text/Section002.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section003.xhtml" href="Text/Section003.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section004.xhtml" href="Text/Section004.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section005.xhtml" href="Text/Section005.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section006.xhtml" href="Text/Section006.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section007.xhtml" href="Text/Section007.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section008.xhtml" href="Text/Section008.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section009.xhtml" href="Text/Section009.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section010.xhtml" href="Text/Section010.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section011.xhtml" href="Text/Section011.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section012.xhtml" href="Text/Section012.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section013.xhtml" href="Text/Section013.xhtml" media-type="application/xhtml+xml"/>
+    <item id="Section014.xhtml" href="Text/Section014.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chara.xhtml" href="Text/chara.xhtml" media-type="application/xhtml+xml"/>
+    <item id="contents-illus.xhtml" href="Text/contents-illus.xhtml" media-type="application/xhtml+xml"/>
+    <item id="contents.xhtml" href="Text/contents.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover.jpg" href="Images/cover.jpg" media-type="image/jpeg"/>
+    <item id="cover.png" href="Images/cover.png" media-type="image/png"/>
+    <item id="cover.xhtml" href="Text/cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="i-0040_01.jpg" href="Images/i-0040_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0091_01.jpg" href="Images/i-0091_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0111_01.jpg" href="Images/i-0111_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0133_01.jpg" href="Images/i-0133_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0195_01.jpg" href="Images/i-0195_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0265_01.jpg" href="Images/i-0265_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0270_01.jpg" href="Images/i-0270_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0281_01.jpg" href="Images/i-0281_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0293_01.jpg" href="Images/i-0293_01.jpg" media-type="image/jpeg"/>
+    <item id="i-0297_01.jpg" href="Images/i-0297_01.jpg" media-type="image/jpeg"/>
+    <item id="i-chara.jpg" href="Images/i-chara.jpg" media-type="image/jpeg"/>
+    <item id="i-contents.jpg" href="Images/i-contents.jpg" media-type="image/jpeg"/>
+    <item id="icon7-1.png" href="Images/icon7-1.png" media-type="image/png"/>
+    <item id="icon7-2.png" href="Images/icon7-2.png" media-type="image/png"/>
+    <item id="icon7-3.png" href="Images/icon7-3.png" media-type="image/png"/>
+    <item id="icon7-4.png" href="Images/icon7-4.png" media-type="image/png"/>
+    <item id="illus01.jpg" href="Images/illus01.jpg" media-type="image/jpeg"/>
+    <item id="illus02.jpg" href="Images/illus02.jpg" media-type="image/jpeg"/>
+    <item id="illus03.jpg" href="Images/illus03.jpg" media-type="image/jpeg"/>
+    <item id="illus04.jpg" href="Images/illus04.jpg" media-type="image/jpeg"/>
+    <item id="illus1.xhtml" href="Text/illus1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="illus2.xhtml" href="Text/illus2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="illus3.xhtml" href="Text/illus3.xhtml" media-type="application/xhtml+xml"/>
+    <item id="illus4.xhtml" href="Text/illus4.xhtml" media-type="application/xhtml+xml"/>
+    <item id="illus5.ttf" href="Fonts/illus5.ttf" media-type="font/ttf"/>
+    <item id="message.xhtml" href="Text/message.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="note.png" href="Images/note.png" media-type="image/png"/>
+    <item id="start.jpg" href="Images/start.jpg" media-type="image/jpeg"/>
+    <item id="start.xhtml" href="Text/start.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style.css" href="Styles/style.css" media-type="text/css"/>
+    <item id="summary.xhtml" href="Text/summary.xhtml" media-type="application/xhtml+xml"/>
+    <item id="title.ttf" href="Fonts/title.ttf" media-type="font/ttf"/>
+    <item id="title.xhtml" href="Text/title.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="cover.xhtml"/>
+    <itemref idref="title.xhtml"/>
+    <itemref idref="message.xhtml"/>
+    <itemref idref="summary.xhtml"/>
+    <itemref idref="illus1.xhtml"/>
+    <itemref idref="illus2.xhtml"/>
+    <itemref idref="illus3.xhtml"/>
+    <itemref idref="illus4.xhtml"/>
+    <itemref idref="chara.xhtml"/>
+    <itemref idref="contents-illus.xhtml"/>
+    <itemref idref="contents.xhtml"/>
+    <itemref idref="start.xhtml"/>
+    <itemref idref="Section000.xhtml"/>
+    <itemref idref="Section001.xhtml"/>
+    <itemref idref="Section002.xhtml"/>
+    <itemref idref="Section003.xhtml"/>
+    <itemref idref="Section004.xhtml"/>
+    <itemref idref="Section005.xhtml"/>
+    <itemref idref="Section006.xhtml"/>
+    <itemref idref="Section007.xhtml"/>
+    <itemref idref="Section008.xhtml"/>
+    <itemref idref="Section009.xhtml"/>
+    <itemref idref="Section010.xhtml"/>
+    <itemref idref="Section011.xhtml"/>
+    <itemref idref="Section012.xhtml"/>
+    <itemref idref="Section013.xhtml"/>
+    <itemref idref="Section014.xhtml"/>
+  </spine>
+  <guide>
+    <reference type="cover" title="封面" href="Text/cover.xhtml"/>
+  </guide>
+</package>

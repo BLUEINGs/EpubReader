@@ -1,8 +1,7 @@
 <script setup lang="js">
 import JSZip from "jszip";
-import NoteCard from "@/components/NoteCard.vue";
 import { useResizeObserver } from '../js/useResizeObserver.js';
-import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick } from 'vue';
+import { computed, onMounted, onUpdated, ref, watch, watchEffect,defineProps } from 'vue';
 import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
 const route = useRoute()
@@ -21,14 +20,54 @@ const route = useRoute()
 
 const zip = ref(null);//定义zip变量存放解压后的内容
 const spineFiles = ref([]);//定义章节文件列表
-// const curChapterIndex = ref(localStorage.getItem("curChapterIndex") ? parseInt(localStorage.getItem("curChapterIndex")) : 0);//当前章节索引
+const curChapterIndex = ref(localStorage.getItem("curChapterIndex") ? parseInt(localStorage.getItem("curChapterIndex")) : 0);//当前章节索引
+const curChapterFilePath = computed(() => {
+  return `OEBPS/${spineFiles.value[curChapterIndex.value]}`;
+});//当前章节文件路径
 
-const blobResourceCache = ref(new Map());//资源缓存列表，键为资源路径，值为blobUrl或其他对象
+const props = defineProps({
+  curChapter:String,
+});//当前章节内容
 
-const chapters = ref([]);//所有章节内容列表
+onMounted(async () => {
+  console.log("ChapterViewer组件挂载完成");
+  if (curChapterIndex.value < 0 || curChapterIndex.value >= spineFiles.value.length) {
+    props.curChapter = "章节加载中...";
+    return;
+  }
 
-const prefixs = ref([]) //css作用域前缀
+  const file = zip.value.file(`OEBPS/${spineFiles.value[curChapterIndex.value]}`);
+  if (file) {
+    props.curChapter = await resolveXhtmlResource(await file.async("string"), `OEBPS/${spineFiles.value[curChapterIndex.value]}`);
+  } else {
+    props.curChapter = "章节资源缺失，加载失败";
+  }
+});
 
+const blobResourceCache = ref(new Map());//资源缓存列表，键为资源路径，值为blobUrl
+
+const prefix = ref("") //css作用域前缀
+
+watch(
+  () => route.fullPath, // 或者 route.path
+  (newPath, oldPath) => {
+    const parts = newPath.split('#')
+    const last = parts[parts.length - 1]
+    console.log('URL 最后一段变化了：', last)
+
+    // 根据最后一段做操作
+    spineFiles.value.forEach((file, index) => {
+      if (file === last) {
+        curChapterIndex.value = index
+      }
+    })
+  },
+  { immediate: true }// 立即执行一次，以初始化状态
+)
+//保存当前章节索引到本地存储，以便下次打开时继续上次阅读
+watch(curChapterIndex, (newVal, oldVal) => {
+  localStorage.setItem("curChapterIndex", newVal);
+});
 const viewerRef = ref(null);//阅读器容器引用
 
 //初始化：获取章节文件列表
@@ -39,22 +78,12 @@ async function init() {
 
   // 解压
   zip.value = await JSZip.loadAsync(arrayBuffer);
+
   spineFiles.value = await loadSpine(zip.value);//获取章节文件列表
-  //并且加载章节
-  console.log("开始加载所有章节内容");
-  // const promises = []
-  for (let i = 0; i < spineFiles.value.length; i++) {
-    const file = zip.value.file(`OEBPS/${spineFiles.value[i]}`)
-    const chapter = await resolveXhtmlResource(await file.async("string"), `OEBPS/${spineFiles.value[i]}`);
-    chapters.value.push(chapter)
-  }
-  // chapters.value = await Promise.all(promises);//此时chapters更新，DOM会刷新
-  console.log("所有章节加载完毕", chapters.value)
 }
 
 init();
 
-//该函数将css文本加上作用域前缀
 function scopeCss(cssText, prefix) {
   // 1) 忽略不应当加作用域的 at-rules
   const skipAtRules = /@(font-face|keyframes|page|counter-style|import|namespace)/i;
@@ -112,6 +141,7 @@ function nextPage() {
   if (viewer.scrollLeft >= viewer.scrollWidth - viewer.clientWidth - 1) {
     // 滚动距离是否大于等于总宽度减去可见宽度-1,如果比这还大,说明已经滚动到尾部了
     console.log("已经滚动到尾部，翻到下一章节");
+    nextChapter();
     return;
   }
   const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
@@ -123,6 +153,7 @@ function prevPage() {
   //判断是否滚动到顶部
   if (viewer.scrollLeft <= 0) {
     console.log("已经滚动到顶部，翻到上一章节");
+    prevChapter();
     return;
   }
   const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
@@ -200,88 +231,37 @@ useResizeObserver(viewerRef, (rect) => {
   console.log("阅读器容器尺寸变化：", rect.width, rect.height);
   width.value = rect.width;
   height.value = rect.height;
-  nextTick(() => {
-    //等会儿DOM更新完毕再设置
-    console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
-    loadViewer();
-  });
+  loadViewer();
 });
 
-const loadedChaptersCount = ref(0);//已加载章节计数
-function onIframeLoad(index) {
-  loadedChaptersCount.value++;
-  console.log("设置章节容器样式：", index);
-  //设置iframe样式，主要是阅读器尺寸
-  const iframe = chaptersRef.value[index]
-  iframe.style.height = `${height.value}px`;
-  iframe.style.minWidth = `${width.value / 2}px`;
-  iframe.style.overflow = "hidden";
-  //设置iframe内文档样式
-  const chapterEl = iframe;
-  const doc = chapterEl.contentDocument
+function loadViewer() {
+  //防止元素移除容器
+  const elements = document.querySelectorAll(`${prefix.value} img,svg`);
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
+    el.style.maxHeight = `${height.value}px`;
+    el.style.maxWidth = `${width.value / 2}px`;//双页显示
+    // el.style.boxSizing = "border-box";
+  }
+
   //当.title没有文本时，去掉其样式的margin，防止标题换页时被截断
-  const titleElements = doc.querySelectorAll(`.title`);
+  const titleElements = document.querySelectorAll(`${prefix.value} .title`);
   titleElements.forEach(el => {
     if (!el.textContent.trim()) {
       el.style.margin = "0";
     }
   });
-  //更正成双开大小
-  const styleEl = doc.createElement("style");
-  styleEl.textContent = `
-      body {
-        margin:0;
-        box-sizing: border-box;
-        height: ${height.value}px;
-        column-fill: auto;
-        column-gap: 0px;
-        column-width: ${width.value / 2}px;
-        overflow: hidden;
-      }
-    `;
-  doc.head.append(styleEl);
-  chapterEl.style.width = doc.body.scrollWidth + "px";
-  //处理超链接
-  const linkElements = doc.querySelectorAll("a[href]");
-  for (let i = 0; i < linkElements.length; i++) {
-    const el = linkElements[i];
-    el.setAttribute("target", "_top");//在当前iframe打开链接
-    const href = el.getAttribute("href");
-  }
 
-  //尝试处理duokan注释
-  const noteElements = doc.querySelectorAll("aside[epub\\:type='footnote']");
-  console.log("找到注释元素：", noteElements);
-  for (let i = 0; i < noteElements.length; i++) {
-    const el = noteElements[i];
-    const noteStyles = iframe.contentWindow.getComputedStyle(el)
-    console.log("注释元素样式：", noteStyles);
-  }
-
-
-  /* if(loadedChaptersCount.value===chapters.value.length){
-    console.log("所有章节iframe加载完毕，开始加载阅读器视图");
-    loadViewer();
-  } */
-}
-
-const chaptersRef = ref([]);//章节容器引用
-console.log("章节引用创建完毕")
-
-function loadViewer() {
-  if (loadedChaptersCount.value !== chapters.value.length) return;//所有章节iframe未加载完毕就不执行
-  //设置章节容器双页显示
-  console.log("chapterRef：", chaptersRef.value);
-  for (let i = 0; i < chaptersRef.value.length; i++) {
-    onIframeLoad(index)
-  }
-
+  //设置双页显示样式
+  viewerRef.value.style.columnFill = "auto";
+  viewerRef.value.style.columnGap = `0px`;
+  viewerRef.value.style.columnWidth = `${width.value / 2}px`;//双页显示
 }
 
 onUpdated(() => {
-  console.log("视图更新完毕，重新加载阅读器视图");
   loadViewer()
 });
+
 
 //xhtml资源解析函数（最先执行的函数）
 async function resolveXhtmlResource(xhtml, curFilePath) {
@@ -289,7 +269,7 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
   const parseList = [
     { selection: "img", attrName: "src" },
     { selection: "image", attrName: "xlink:href" },
-    { selection: "link[rel='stylesheet']", attrName: "href", type: "text/css", postProcess: resolveCssResource },
+    { selection: "link[rel='stylesheet']", attrName: "href", type: "text/css", postProcess: resolveCssResourceAndScope }
   ]
 
   const parser = new DOMParser();
@@ -307,13 +287,6 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
         //先检查缓存列表
         if (blobResourceCache.value.has(relativePathToAbsolutePath(curFilePath, attrValue))) {
           console.log(`资源已缓存：`, attrValue);
-          if (item.postProcess) {
-            //有后处理函数：取出缓存对象的prefix和blobUrl
-            const blobUrl = blobResourceCache.value.get(relativePathToAbsolutePath(curFilePath, attrValue));
-            el.setAttribute(item.attrName, blobUrl);
-            continue;//跳过后续处理
-          }
-          //无后处理函数：直接取出缓存的blobUrl
           el.setAttribute(item.attrName, blobResourceCache.value.get(relativePathToAbsolutePath(curFilePath, attrValue)));
           continue;//跳过后续处理
         }
@@ -322,7 +295,7 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
         if (item.postProcess) {
           try {
             console.log(`获取并后处理${item.type}资源：`, attrValue);
-            const newValue = await item.postProcess(await getResource(curFilePath, attrValue, "string"), relativePathToAbsolutePath(curFilePath, attrValue), curFilePath);
+            const newValue = await item.postProcess(await getResource(curFilePath, attrValue, "string"), relativePathToAbsolutePath(curFilePath, attrValue));
             const blobUrl = URL.createObjectURL(new Blob([newValue], { type: 'text/css' }));
             blobResourceCache.value.set(relativePathToAbsolutePath(curFilePath, attrValue), blobUrl);
             //需要后处理最好缓存起来，省得在处理css时重复获取资源
@@ -410,72 +383,21 @@ async function resolveCssResource(css, curFilePath) {
   return css;
 }
 
-async function resolveCssResourceAndScope(css, cssFilePath, xhtmlFilePath) {
-  const resolvedCss = await resolveCssResource(css, cssFilePath);
-  //写一下scope逻辑
-  const index = getChapterIndexByFilePath(xhtmlFilePath);
-  //保证一个DOM可以关联多个CSS文件时前缀一致
-  if (prefixs.value[index]) {
-    return { "prefix": prefixs.value, "css": scopeCss(resolvedCss, prefixs.value) };
-  }
-  prefixs.value[index] = `#reader-${crypto.randomUUID().replace(/-/g, "").slice(0, 6)}`;
-  nextTick(() => {
-    //等会儿DOM更新完毕再设置id
-    console.log("设置章节容器id：", prefixs.value[index]);
-    chaptersRef.value[index].setAttribute("id", prefixs.value[index].slice(1));//设置章节容器id，扣掉前面的#
-  });
-  return { "prefix": prefixs.value, "css": scopeCss(resolvedCss, prefixs.value) };
-}
-
-//这里curFilePath是章节文件路径，而不是资源文件路径
-//该方法主要解决同一个CSS文件被多个章节引用时作用域前缀冲突的问题
-async function scopedDOM(prefix, xhtmlFilePath) {
-  const index = getChapterIndexByFilePath(xhtmlFilePath);
-  nextTick(() => {
-    //等会儿DOM更新完毕再设置id
-    console.log("设置章节容器id：", prefix);
-    chaptersRef.value[index].setAttribute("id", prefix.slice(1));//设置章节容器id，扣掉前面的#
-  });
-  prefixs.value[index] = prefix;
-  return;
-}
-
-//通过章节路径获取章节索引
-function getChapterIndexByFilePath(filePath) {
-  console.log("查找章节索引，章节路径：", filePath);
-  for (let i = 0; i < spineFiles.value.length; i++) {
-    if (`OEBPS/${spineFiles.value[i]}` === filePath) {
-      console.log("找到章节索引：", spineFiles.value[i]);
-      return i;
-    }
-  }
-  return -1;//未找到
+async function resolveCssResourceAndScope(css, curFilePath) {
+  const resolvedCss = await resolveCssResource(css, curFilePath);
+  crypto.randomUUID().replace(/-/g, "").slice(0, 6);//生成一个随机字符串，用于css作用域前缀
+  prefix.value = `#reader-${crypto.randomUUID().replace(/-/g, "").slice(0, 6)}`;
+  viewerRef.value.setAttribute("id", prefix.value.slice(1));//设置阅读器容器id，扣掉前面的#
+  return scopeCss(resolvedCss, prefix.value);
 }
 
 </script>
 <template>
-  <div class="buttonArea">
-    <button @click="prevPage">上一页</button>
-    <button @click="nextPage">下一页</button>
-  </div>
-  <NoteCard>
-    <aside epub:type="footnote" id="note1">
-      <a href="#r_note1"></a>
-      <ol class="duokan-footnote-content" style="list-style:none">
-        <li class="duokan-footnote-item" id="note1">注：羽织双簧，指两名表演者共穿一件和服来进行表演</li>
-      </ol>
-    </aside>
-  </NoteCard>
   <div ref="viewerRef" class="viewer">
-    <iframe :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters" :key="index" class="xhtml"
-      :srcdoc="chapter" @load="onIframeLoad(index, $event)"></iframe>
+    <div class="xhtml" v-html="curChapter"></div>
   </div>
 </template>
 <style scoped lang="less">
-iframe {
-  border: none;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -494,25 +416,23 @@ iframe {
   }
 }
 
-.xhtml {
-  white-space: normal;
-  /* 保持正文换行 */
-  vertical-align: top;
-}
 
 .viewer {
   width: 1120px; //A4纸宽度
   height: 800px;
   margin: 0 auto;
   background-color: skyblue;
-  white-space: nowrap; //防止章节div换行
-  // overflow:hidden;
+  overflow: hidden;
 
   div {
-    vertical-align: top;
+    height: 100%;
   }
-
 }
+
+.viewer div {
+  height: 100% !important;
+}
+
 
 .link-button {
   background: none;
