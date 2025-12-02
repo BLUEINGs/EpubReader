@@ -15,11 +15,14 @@
     "lint": "eslint . --fix --cache"
   },
   "dependencies": {
+    "epub.js": "^0.2.15",
+    "epubjs": "^0.3.93",
     "pinia": "^3.0.4",
     "vue": "^3.5.25",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@tsconfig/node24": "^24.0.3",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
@@ -29,7 +32,7 @@
     "eslint-plugin-vue": "~10.5.1",
     "jiti": "^2.6.1",
     "npm-run-all2": "^8.0.4",
-    "typescript": "~5.9.0",
+    "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vue-tsc": "^3.1.5"

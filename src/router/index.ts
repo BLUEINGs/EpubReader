@@ -17,6 +17,12 @@ const router = createRouter({
       // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
     },
+    {
+      path:'/reader',
+      name:'EpubReader',
+      // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
+      component: () => import('../views/EpubReader.vue')
+    }
   ],
 })
 
