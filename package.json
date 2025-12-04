@@ -15,6 +15,7 @@
     "lint": "eslint . --fix --cache"
   },
   "dependencies": {
+    "@vue/server-renderer": "^3.5.25",
     "epub.js": "^0.2.15",
     "epubjs": "^0.3.93",
     "jszip": "^3.10.1",

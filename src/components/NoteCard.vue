@@ -1,10 +1,31 @@
+<!-- 该组件样式由外部负责，组件内只负责展示和定位 -->
 <script setup lang="js">
-import {defineProos} from "vue"
-const props=defineProos()
+import {defineProps, onMounted,ref} from "vue"
+
+const props=defineProps({
+  noteRefRect:Object
+})
+
+const noteCardEl=ref(null)
+onMounted(()=>{
+  console.log('noteCard mounted',props.noteRefRect)
+  if(!props.noteRefRect)return
+  if(noteCardEl.value.clientWidth>document.documentElement.clientWidth){
+    //宽度超出屏幕，复制样式
+    noteCardEl.value.style.width=`${document.documentElement.clientWidth-20}px`
+  }
+  noteCardEl.value.style.top=`${props.noteRefRect.bottom}px`
+  let left=props.noteRefRect.left-noteCardEl.value.clientWidth/2
+  left=Math.max(10,left)
+  if(left+noteCardEl.value.clientWidth>document.documentElement.clientWidth-10){
+    left=document.documentElement.clientWidth-10-noteCardEl.value.clientWidth
+  }
+  noteCardEl.value.style.left=`${left}px`
+})
 
 </script>
 <template>
-  <div class="note-card">
+  <div ref="noteCardEl" class="note-card">
     <slot></slot>
   </div>
 </template>

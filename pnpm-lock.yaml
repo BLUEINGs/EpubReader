@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@vue/server-renderer':
+        specifier: ^3.5.25
+        version: 3.5.25(vue@3.5.25(typescript@5.9.3))
       epub.js:
         specifier: ^0.2.15
         version: 0.2.15
