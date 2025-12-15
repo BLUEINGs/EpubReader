@@ -6,6 +6,7 @@ import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick, h } 
 import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
 import { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/js/utils.js";
+import PageSelector from "@/components/PageSelector.vue";
 
 import ChapterNotFound from "./ChapterNotFound.html?raw";
 //?raw是把html文件作为字符串导入
@@ -26,7 +27,6 @@ const route = useRoute()
 
 const zip = ref(null);//定义zip变量存放解压后的内容
 const spineFiles = ref([]);//定义章节文件列表
-// const curChapterIndex = ref(localStorage.getItem("curChapterIndex") ? parseInt(localStorage.getItem("curChapterIndex")) : 0);//当前章节索引
 
 const blobResourceCache = ref(new Map());//资源缓存列表，键为资源路径，值为blobUrl或其他对象
 
@@ -52,11 +52,19 @@ const chapterLoadType = computed(() => {
   return loadXHTMLByHTMLMode.value ? "text/html" : "application/xhtml+xml"
 })
 
+
+const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
   const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
+
+  //异步计算HASH，然后确定书本ID。这里是我相信待会儿恢复阅读的时候这个值已经计算完毕了
+  crypto.subtle.digest('SHA-256', arrayBuffer).then(hashBuffer => {
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    bookHash.value = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  });
 
   // 解压
   zip.value = await JSZip.loadAsync(arrayBuffer);
@@ -338,6 +346,7 @@ const totalPages = ref(0);
 const currentPage = ref(0);
 useScrollObserver(viewerRef, updatePagesParams);
 
+//这里的逻辑是滚动=>更新页码和进度
 function updatePagesParams(scrollInfo) {
   totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
   currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2)) + 1;
@@ -356,7 +365,7 @@ function loadPagesParams() {
 //进度记录器
 watch(readProcess, (newVal) => {
   if (!isRecovered.value) return;//未恢复进度前不记录
-  localStorage.setItem("readProcess", newVal);
+  localStorage.setItem(bookHash.value, newVal);
 });
 
 function skipToPage(pageNum) {
@@ -367,7 +376,7 @@ function skipToPage(pageNum) {
 
 const isRecovered = ref(false);
 function recoverProcess() {
-  const savedProcess = localStorage.getItem("readProcess");
+  const savedProcess = localStorage.getItem(bookHash.value);
   if (savedProcess) {
     console.log("恢复阅读进度：", savedProcess);
     const viewer = viewerRef.value;
@@ -782,12 +791,14 @@ async function resolveCssResource(css, curFilePath) {
 
   //处理vw单位，因为iframe内vw单位是相对于iframe宽度的，这是非常宽的，这违背著书者原意
   const vwRegex = /([\d.]+)vw/g;
-  css = css.replace(vwRegex, (match, p1) => { {
-    const pxValue = (parseFloat(p1) / 100) * (width.value/2);
-    return `${pxValue}px`;
-  }});
+  css = css.replace(vwRegex, (match, p1) => {
+    {
+      const pxValue = (parseFloat(p1) / 100) * (width.value / 2);
+      return `${pxValue}px`;
+    }
+  });
   //将16em到20em的宽度样式去掉，防止章节宽度过大导致横向滚动条出现
-  css=css.replace(
+  css = css.replace(
     /\bwidth\s*:\s*(1[6-9](?:\.\d+)?|20(?:\.0+)?)em\s*;?/gi,
     ''
   );
@@ -820,7 +831,7 @@ function hideAllNoteCards() {
 <template>
   <div class="buttonArea">
     <button @click="prevPage">上一页</button>
-    {{ currentPage }} / {{ totalPages }}
+    <PageSelector @update:selectedPage="skipToPage" :selectedPage="currentPage" :totalPages="totalPages" />
     <button @click="nextPage">下一页</button>
   </div>
   <div ref="viewerRef" class="viewer">
