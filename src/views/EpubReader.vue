@@ -2,10 +2,10 @@
 import JSZip from "jszip";
 import NoteCard from "@/components/NoteCard.vue";
 import { useResizeObserver, useScrollObserver } from '../js/useDOMObserver.js.js';
-import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick } from 'vue';
+import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick, h } from 'vue';
 import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
-import {  roundToNearestMultiple,copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/js/utils.js";
+import { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/js/utils.js";
 
 import ChapterNotFound from "./ChapterNotFound.html?raw";
 //?raw是把html文件作为字符串导入
@@ -54,7 +54,7 @@ const chapterLoadType = computed(() => {
 
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -97,41 +97,93 @@ const isLNovel = ref(false);
 const bookRate = ref(1.4);//书籍开版/比例（高：宽），仅轻小说有效，默认1倍
 
 //轻小说优化器
-async function betterLNovel(iframe, chapterDoc) {
+async function betterLNovel(index, iframe, chapterDoc) {
+
+  const illusNames = ["插图", "插畫", "イラスト", "illustration", "Illustration", "彩插", "插画", "彩圖", "彩图", "illus", "彩页"];
+
+  const title = chapterDoc.head.querySelector("title")?.textContent || "未命名章节";
   const imgs = chapterDoc.querySelectorAll("img,image")
   for (let i = 0; i < imgs.length; i++) {
     const imgEl = imgs[i];
     //计算图片显示尺寸
     const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
+
     await getImageResolution(src).then(size => {
       console.log("轻小说图片分辨率：", size);
-      const imgRate = (size.width / size.height).toFixed(1);
+      const imgRate = Math.round((size.width / size.height) * 100) / 100;
       console.log("计算图片开版比例：", imgRate);
-      if (imgRate == bookRate.value) {
-        console.log("图片开版比例与书籍开版比例相符，应用双页尺寸优化");
-        //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
-        setElFullWidth(imgEl);
-        //占位标签：column只有一页大小，图片虽然是两页尺寸，
-        // 但他在DOM中还是占用一页宽度，后面的内容会挤到图片右半部分上
-        const placeholder = chapterDoc.createElement("div")
-        placeholder.style.width = `${width.value / 2}px`
-        placeholder.style.height = `${height.value}px`
-        imgEl.after(placeholder);
+      const isRoundBookRate = Math.abs(imgRate - bookRate.value) <= 0.1;
+      let isTitleMatched = isRoundBookRate;
+      if (!isTitleMatched) {
+        for (let i = 0; i < illusNames.length; i++) {
+          if (title.match(new RegExp(illusNames[i], "i"))) {
+            isTitleMatched = true;
+            console.log(`章节标题匹配到插画关键词${illusNames[i]}，应用插画优化`);
+            break;
+          }
+        }
       }
-
+      if (!isTitleMatched) {
+        for (let i = 0; i < illusNames.length; i++) {
+          let filename = spineFiles.value[index]
+          if (filename.match(new RegExp(illusNames[i], "i"))) {
+            isTitleMatched = true;
+            console.log(`章节文件名匹配到插画关键词${illusNames[i]}，应用插画优化`);
+            break;
+          }
+        }
+      }
+      if ((isTitleMatched && imgRate > 1)) {
+        console.log("图片被标记为插画，应用双页尺寸优化");
+        //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
+        setImgFullWidth(imgEl);
+        console.log("图片开版比例与书籍开版比例相符，添加占位优化");
+      }
     })
   }
 
-  function setElFullWidth(el) {
-    el.style.width = `${width.value}px`;
-    // el.style.display = "block";
-    el.style.maxWidth = "none";
-    //如果el父元素不直接是body，则把父元素也设置成块级元素，防止其影响布局
-    /* if (el.parentElement !== chapterDoc.body) {
-      //递归调用，直到body为止
-      setElFullWidth(el.parentElement);
-    } */
+  /* 此处的全屏逻辑：
+  1.如果图片是img标签，那就把它的宽高设置成双页尺寸，并且设置object-fit:contain属性，让图片按比例缩放适应容器。
+  但是在width-column机制中，这个图片在标准流中只有一页的宽度，那一页是溢出的，所以我做一个兄弟标签弄到img后边，
+  他俩合起来占用双页，然后把生成一个它的父元素设置成块级元素，让其width:auto，这样一来就会自动被img+div撑开，
+  撑大到两页宽度，这时这一栏就强行是双页宽度了，图片也能完整显示。
+  注意：width-column布局中，行内元素（inline或inline-block）是不会撑开栏宽的，内容太长会被当成溢出，但Web流中只有一个栏目
+  // 2.观测svg也撑不开
+  */
+  function setImgFullWidth(imgEl) {
+    const placeholder = chapterDoc.createElement("div")
+    placeholder.style.width = `${width.value / 2}px`
+    placeholder.style.height = `${height.value}px`
+    if (imgEl.tagName.toLowerCase() === "image") {
+      if (imgEl.parentElement) {
+        //那其父元素一定是svg标签
+        imgEl.parentElement.style.height = `${height.value}px`;
+        imgEl.parentElement.style.maxHeight = "none";
+        imgEl.parentElement.style.width = `${width.value}px`;
+        imgEl.parentElement.style.maxWidth = "none";
+        imgEl.parentElement.after(placeholder)
+      }
+      return
+    }
+    //如果不是image，在这里设置img标签样式
+    imgEl.style.width = `${width.value}px`;
+    imgEl.style.maxWidth = "none";
+    imgEl.style.height = `${height.value}px`;
+    imgEl.style.maxHeight = "none";
+    //这个属性让图片按比例缩放以适应容器，就是实际上宽高是我设置的宽高，但是真正图片会在img中适配显示
+    imgEl.style.objectFit = "contain";
+    if (imgEl.parentElement) {
+      // 这里是如果图片的直接父元素不是块级元素，那可能会影响布局，把父元素也设置成块级元素。
+      imgEl.parentElement.style.display = "block";
+      imgEl.parentElement.style.height = "auto";
+      imgEl.parentElement.style.width = "auto";
+    }
+    //占位标签：column只有一页大小，图片虽然是两页尺寸，
+    // 但他在DOM中还是占用一页宽度，后面的内容会挤到图片右半部分上
+    imgEl.after(placeholder);
   }
+
+
 
 }
 
@@ -209,9 +261,6 @@ function prevPage() {
   const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
   viewer.scrollLeft -= pageWidth;
 }
-
-
-
 
 async function loadSpine(zip) {
   const containerXml = await zip.file("META-INF/container.xml").async("string");
@@ -306,7 +355,7 @@ function loadPagesParams() {
 
 //进度记录器
 watch(readProcess, (newVal) => {
-  if(!isRecovered.value)return;//未恢复进度前不记录
+  if (!isRecovered.value) return;//未恢复进度前不记录
   localStorage.setItem("readProcess", newVal);
 });
 
@@ -316,7 +365,7 @@ function skipToPage(pageNum) {
   viewer.scrollLeft = (pageNum - 1) * pageWidth;
 }
 
-const isRecovered= ref(false);
+const isRecovered = ref(false);
 function recoverProcess() {
   const savedProcess = localStorage.getItem("readProcess");
   if (savedProcess) {
@@ -380,6 +429,11 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }
   }
 
+  //处理一下svg图片的比例缩放问题
+  doc.querySelectorAll("svg").forEach(svgEl => {
+    svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  });
+
   //当.title没有文本时，去掉其样式的margin，防止标题换页时被截断
   const titleElements = doc.querySelectorAll(`.title`);
   titleElements.forEach(el => {
@@ -392,6 +446,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   styleEl.textContent = `
       body {
         margin:0;
+        padding:0;
         box-sizing: border-box;
         height: ${height.value}px;
         column-fill: auto;
@@ -399,16 +454,19 @@ async function onIframeLoad(index, event, isReLoad = false) {
         column-width: ${width.value / 2}px;
         overflow: hidden;
       }
-      img,image{
-        max-width: 100%;
+      svg,img,image{
+        max-width: ${width.value / 2}px;
+        max-height: ${height.value}px;
+        object-fit: contain;
       }
     `;
   doc.head.append(styleEl);
+  //这样追加的style在原样式后，会覆盖原有样式
 
   //特殊处理轻小说
   if (isLNovel.value) {
     console.log(`对${index}章节应用轻小说优化器`);
-    await betterLNovel(iframe, doc);
+    await betterLNovel(index, iframe, doc);
   }
 
   //防止p标签超过宽度
@@ -427,7 +485,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
   //防止横向滚动条出现
   console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
-  chapterEl.style.width = doc.body.scrollWidth + "px";
+  chapterEl.style.width = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2) + "px";
+
   //处理超链接
   const linkElements = doc.querySelectorAll("a[href]");
   for (let i = 0; i < linkElements.length; i++) {
@@ -721,6 +780,18 @@ async function resolveCssResource(css, curFilePath) {
     css = css.replace(m.full, `@import url('${blobUrl}');`);
   }
 
+  //处理vw单位，因为iframe内vw单位是相对于iframe宽度的，这是非常宽的，这违背著书者原意
+  const vwRegex = /([\d.]+)vw/g;
+  css = css.replace(vwRegex, (match, p1) => { {
+    const pxValue = (parseFloat(p1) / 100) * (width.value/2);
+    return `${pxValue}px`;
+  }});
+  //将16em到20em的宽度样式去掉，防止章节宽度过大导致横向滚动条出现
+  css=css.replace(
+    /\bwidth\s*:\s*(1[6-9](?:\.\d+)?|20(?:\.0+)?)em\s*;?/gi,
+    ''
+  );
+
   return css;
 }
 
@@ -794,11 +865,12 @@ iframe {
 
 .viewer {
   width: 1120px; //A4纸宽度
-  height: 800px;
+  height: 900px;
   margin: 0 auto;
   // background-color: skyblue;
   white-space: nowrap; //防止章节div换行
   overflow: hidden;
+  background-color: antiquewhite;
 
   div {
     vertical-align: top;
