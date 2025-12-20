@@ -56,7 +56,7 @@ const chapterLoadType = computed(() => {
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -124,7 +124,8 @@ async function betterLNovel(index, iframe, chapterDoc) {
         console.log("图片被标记为插画，应用双页尺寸优化");
         //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
         setImgFullWidth(imgEl);
-        imgEl.style.marginTop = `-${pagePadding.value}px`;
+        imgEl.style.position = "relative";
+        imgEl.style.top = `-${pagePadding.value}px`;
       }
     })
     //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
@@ -408,7 +409,7 @@ function isImgIllus(imgEl) {
 const noteCards = ref([]);//注释卡片引用列表
 
 //处理页内边距
-const pagePadding = ref(20);//页内边距，单位px
+const pagePadding = ref(30);//页内边距，单位px
 
 const loadedChaptersCount = ref(0);//已加载章节计数
 async function onIframeLoad(index, event, isReLoad = false) {
@@ -488,15 +489,10 @@ async function onIframeLoad(index, event, isReLoad = false) {
         if (parent.tagName.toLowerCase() == "a") {
           //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
           parent.style.marginTop = `-${pagePadding.value}px`;
-        } else if (parent.tagName.toLowerCase() == "p") {
-          console.log("图片父元素是p标签");
-          if (parent.children.length == 1) {
-            //如果img的父元素是p标签，且p标签内只有img一个子元素，那就说明这张图片单独占一个p标签的
-            parent.style.marginTop = `-${pagePadding.value}px`;
-          }
         }
       }
-      imgEl.style.marginTop = `-${pagePadding.value}px`;
+      imgEl.style.position = "relative";
+      imgEl.style.top = `-${pagePadding.value}px`;
     }
   });
 
@@ -505,12 +501,14 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
     if (svgEl.getAttribute("width") == "100%" || svgEl.style.width == "100%") {
       svgEl.style.width = `${width.value / 2}px`
-      svgEl.style.marginTop = `-${pagePadding.value}px`
+      svgEl.style.position="relative"
+      svgEl.style.top = `-${pagePadding.value}px`
     }
     if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
       // console.log("该标签高度有100%，执行一些逻辑")
       svgEl.style.height = `${height.value}px`
-      svgEl.style.marginTop = `-${pagePadding.value}px`
+      svgEl.style.position="relative"
+      svgEl.style.top = `-${pagePadding.value}px`
     }
     svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
   });
@@ -952,7 +950,7 @@ iframe {
 
 .viewer {
   width: 1120px; //A4纸宽度
-  height: 900px;
+  height: 800px;
   margin: 0 auto;
   // background-color: skyblue;
   white-space: nowrap; //防止章节div换行
