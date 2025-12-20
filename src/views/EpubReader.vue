@@ -56,7 +56,7 @@ const chapterLoadType = computed(() => {
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test3.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -115,7 +115,7 @@ async function betterLNovel(index, iframe, chapterDoc) {
     const imgEl = imgs[i];
     //计算图片显示尺寸
     const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
-
+    //处理双开图
     await getImageResolution(src).then(size => {
       console.log("轻小说图片分辨率：", size);
       const imgRate = Math.round((size.width / size.height) * 100) / 100;
@@ -145,9 +145,14 @@ async function betterLNovel(index, iframe, chapterDoc) {
         console.log("图片被标记为插画，应用双页尺寸优化");
         //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
         setImgFullWidth(imgEl);
-        console.log("图片开版比例与书籍开版比例相符，添加占位优化");
+        imgEl.style.marginTop = `-${pagePadding.value}px`;
       }
     })
+    //处理所有要全屏显示的所有插图（包括单页和双页的）
+    if (isImgIllus(imgEl)) {
+      imgEl.style.height = `${height.value}px`;
+    }
+
   }
 
   /* 此处的全屏逻辑：
@@ -161,7 +166,7 @@ async function betterLNovel(index, iframe, chapterDoc) {
   function setImgFullWidth(imgEl) {
     const placeholder = chapterDoc.createElement("div")
     placeholder.style.width = `${width.value / 2}px`
-    placeholder.style.height = `${height.value}px`
+    placeholder.style.height = `${height.value - pagePadding.value * 2}px`
     if (imgEl.tagName.toLowerCase() === "image") {
       if (imgEl.parentElement) {
         //那其父元素一定是svg标签
@@ -190,8 +195,6 @@ async function betterLNovel(index, iframe, chapterDoc) {
     // 但他在DOM中还是占用一页宽度，后面的内容会挤到图片右半部分上
     imgEl.after(placeholder);
   }
-
-
 
 }
 
@@ -400,18 +403,27 @@ useResizeObserver(viewerRef, (rect) => {
   });
 });
 
+
+function isImgIllus(imgEl) {
+  // console.log("图片的高度与宽度",imgEl.scrollHeight,imgEl.scrollWidth);
+  // console.log("宽度判断：",imgEl.scrollWidth,Math.abs(imgEl.scrollWidth- width.value/2)<=10);
+  return (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10)
+}
+
 const noteCards = ref([]);//注释卡片引用列表
 
-
+//处理页内边距
+const pagePadding = ref(20);//页内边距，单位px
 
 const loadedChaptersCount = ref(0);//已加载章节计数
 async function onIframeLoad(index, event, isReLoad = false) {
   console.log("设置章节容器样式：", index);
-  //设置iframe样式，主要是阅读器尺寸
+  //设置iframe样式，主要是阅读器尺寸。
   const iframe = chaptersRef.value[index]
   iframe.style.height = `${height.value}px`;
   iframe.style.minWidth = `${width.value / 2}px`;
   iframe.style.overflow = "hidden";
+  // iframe.style.paddingRight = `${pagePadding.value*2}px`;
   //设置iframe内文档样式
   const chapterEl = iframe;
   const doc = chapterEl.contentDocument
@@ -438,19 +450,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }
   }
 
-  //处理一下svg图片的比例缩放问题
-  doc.querySelectorAll("svg").forEach(svgEl => {
-    svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  });
 
-  //当.title没有文本时，去掉其样式的margin，防止标题换页时被截断
-  const titleElements = doc.querySelectorAll(`.title`);
-  titleElements.forEach(el => {
-    if (!el.textContent.trim()) {
-      el.style.margin = "0";
-    }
-  });
-  //更正成双开大小
+  //更正成双开大小的style
   const styleEl = doc.createElement("style");
   styleEl.textContent = `
       body {
@@ -461,6 +462,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
         column-fill: auto;
         column-gap: 0px;
         column-width: ${width.value / 2}px;
+        padding-top:${pagePadding.value}px;
+        padding-bottom:${pagePadding.value}px;
         overflow: hidden;
       }
       svg,img,image{
@@ -468,9 +471,90 @@ async function onIframeLoad(index, event, isReLoad = false) {
         max-height: ${height.value}px;
         object-fit: contain;
       }
+      /* p,h1,h2,h3,h4,h5,h6 {
+        box-sizing: border-box;
+        padding-left: ${pagePadding.value}px;
+        padding-right: ${pagePadding.value}px;
+      } */
     `;
   doc.head.append(styleEl);
   //这样追加的style在原样式后，会覆盖原有样式
+
+  /*
+  这里是一个插画页判断逻辑，img标签如果高度接近阅读器高度，就认为是插画页；
+  svg标签则是作者指定会设置svg宽度/高度100%的情况
+   */
+
+  doc.querySelectorAll("img").forEach(imgEl => {
+    const computed = getComputedStyle(imgEl);
+    console.log("img计算样式宽高：", imgEl.scrollWidth, imgEl.scrollHeight);
+    console.log("能否判断？", Math.abs(new Number(computed.height.replace("px", "")) - height.value) <= pagePadding.value + 10);
+    if (isImgIllus(imgEl)) {
+      if (imgEl.parentElement) {
+        console.log("图片有父元素，检查父元素类型");
+        const parent = imgEl.parentElement;
+        if (parent.tagName.toLowerCase() == "a") {
+          //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
+          imgEl.parentElement.style.marginTop = `-${pagePadding.value}px`;
+          return
+        } else if (parent.tagName.toLowerCase() == "p") {
+          console.log("图片父元素是p标签");
+          if (parent.children.length == 1) {
+            //如果img的父元素是p标签，且p标签内只有img一个子元素，那就说明这张图片单独占一个p标签的
+            parent.style.marginTop = `-${pagePadding.value}px`;
+            return
+          }
+        }
+      }
+      imgEl.style.marginTop = `-${pagePadding.value}px`;
+    }
+  });
+
+  //处理一下svg图片的比例缩放问题
+  doc.querySelectorAll("svg").forEach(svgEl => {
+
+    if (svgEl.getAttribute("width") == "100%" || svgEl.style.width == "100%") {
+      svgEl.style.width = `${width.value / 2}px`
+      svgEl.style.marginTop = `-${pagePadding.value}px`
+    }
+    if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
+      // console.log("该标签高度有100%，执行一些逻辑")
+      svgEl.style.height = `${height.value}px`
+      svgEl.style.marginTop = `-${pagePadding.value}px`
+    }
+    svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  });
+
+  //当.title没有文本时，去掉其样式的margin，防止标题换页时被截断
+  const titleElements = doc.querySelectorAll(`.title`);
+  titleElements.forEach(el => {
+    if (!el.textContent.trim()) {
+      el.style.margin = "0";
+    }
+  });
+
+
+  //处理文本标签的默认内边距
+  const textElements = doc.querySelectorAll("li,p,dd,dt,section,header,footer,article,h1,h2,h3,h4,h5,h6");
+  textElements.forEach(el => {
+    if (el.children.length == 1 && el.children[0].tagName.toLowerCase() == "img") {
+      //子元素只有一个img标签，不处理
+      return;
+    }
+    const warpper = doc.createElement("span")
+    warpper.style.paddingLeft = `${pagePadding.value}px`;
+    warpper.style.paddingRight = `${pagePadding.value}px`;
+    warpper.style.boxSizing = "border-box";
+    warpper.style.display = "block";
+    el.replaceWith(warpper);//这个api是把warpper放到el位置，然后el移除。而不是把让原来的el=warpper
+    warpper.appendChild(el);
+  });
+
+  //使文本选中更流畅
+  doc.body.style.webkitUserSelect = "text";
+  doc.body.style.userSelect = "text";
+  doc.body.style.outline = "none";
+  doc.body.setAttribute("tabindex", "-1");//使body可聚焦，防止选中文本后无法取消选中
 
   //特殊处理轻小说
   if (isLNovel.value) {
@@ -481,8 +565,11 @@ async function onIframeLoad(index, event, isReLoad = false) {
   //防止p标签超过宽度
   const strictPEl = doc.createElement("style");
   strictPEl.textContent = `
-    p,h1,h2,h3,h4,h5 {
+    p,h1,h2,h3,h4,h5,h6,hr {
       max-width: ${width.value / 2}px;
+    }
+    hr {
+      margin: 10px ${pagePadding.value}px;
     }
   `;
   doc.head.append(strictPEl);
