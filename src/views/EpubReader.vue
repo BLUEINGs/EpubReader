@@ -56,7 +56,7 @@ const chapterLoadType = computed(() => {
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test3.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -120,37 +120,29 @@ async function betterLNovel(index, iframe, chapterDoc) {
       console.log("轻小说图片分辨率：", size);
       const imgRate = Math.round((size.width / size.height) * 100) / 100;
       console.log("计算图片开版比例：", imgRate);
-      const isRoundBookRate = Math.abs(imgRate - bookRate.value) <= 0.1;
-      let isTitleMatched = isRoundBookRate;
-      if (!isTitleMatched) {
-        for (let i = 0; i < illusNames.length; i++) {
-          if (title.match(new RegExp(illusNames[i], "i"))) {
-            isTitleMatched = true;
-            console.log(`章节标题匹配到插画关键词${illusNames[i]}，应用插画优化`);
-            break;
-          }
-        }
-      }
-      if (!isTitleMatched) {
-        for (let i = 0; i < illusNames.length; i++) {
-          let filename = spineFiles.value[index]
-          if (filename.match(new RegExp(illusNames[i], "i"))) {
-            isTitleMatched = true;
-            console.log(`章节文件名匹配到插画关键词${illusNames[i]}，应用插画优化`);
-            break;
-          }
-        }
-      }
-      if ((isTitleMatched && imgRate > 1)) {
+      if ((isImgIllus(imgEl) && imgRate > 1)) {
         console.log("图片被标记为插画，应用双页尺寸优化");
         //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
         setImgFullWidth(imgEl);
         imgEl.style.marginTop = `-${pagePadding.value}px`;
       }
     })
-    //处理所有要全屏显示的所有插图（包括单页和双页的）
+    //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
     if (isImgIllus(imgEl)) {
-      imgEl.style.height = `${height.value}px`;
+      if (imgEl.tagName.toLowerCase() != "image") {
+        imgEl.style.height = `${height.value}px`;
+      }
+      if (imgEl.parentElement) {
+        const parent = imgEl.parentElement;
+        parent.style.display = "block";
+        if (parent.tagName.toLowerCase() != "svg") {
+          parent.style.height = "auto";
+        }
+        parent.style.padding = "0";
+        if (parent.tagName.toLowerCase() == "p" && parent.children.length == 1) {
+          parent.replaceWith(...parent.childNodes);//把p标签移除，直接用子节点替代
+        }
+      }
     }
 
   }
@@ -405,8 +397,11 @@ useResizeObserver(viewerRef, (rect) => {
 
 
 function isImgIllus(imgEl) {
-  // console.log("图片的高度与宽度",imgEl.scrollHeight,imgEl.scrollWidth);
-  // console.log("宽度判断：",imgEl.scrollWidth,Math.abs(imgEl.scrollWidth- width.value/2)<=10);
+  if (imgEl.tagName.toLowerCase() === "image") {
+    const parent = imgEl.parentElement;
+    return (parent.getAttribute("width") == "100%" || parent.style.width == "100%"
+      || parent.getAttribute("height") == "100%" || parent.style.height == "100%")
+  }
   return (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10)
 }
 
@@ -486,23 +481,18 @@ async function onIframeLoad(index, event, isReLoad = false) {
    */
 
   doc.querySelectorAll("img").forEach(imgEl => {
-    const computed = getComputedStyle(imgEl);
-    console.log("img计算样式宽高：", imgEl.scrollWidth, imgEl.scrollHeight);
-    console.log("能否判断？", Math.abs(new Number(computed.height.replace("px", "")) - height.value) <= pagePadding.value + 10);
     if (isImgIllus(imgEl)) {
       if (imgEl.parentElement) {
         console.log("图片有父元素，检查父元素类型");
         const parent = imgEl.parentElement;
         if (parent.tagName.toLowerCase() == "a") {
           //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
-          imgEl.parentElement.style.marginTop = `-${pagePadding.value}px`;
-          return
+          parent.style.marginTop = `-${pagePadding.value}px`;
         } else if (parent.tagName.toLowerCase() == "p") {
           console.log("图片父元素是p标签");
           if (parent.children.length == 1) {
             //如果img的父元素是p标签，且p标签内只有img一个子元素，那就说明这张图片单独占一个p标签的
             parent.style.marginTop = `-${pagePadding.value}px`;
-            return
           }
         }
       }
@@ -535,10 +525,9 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
 
   //处理文本标签的默认内边距
-  const textElements = doc.querySelectorAll("li,p,dd,dt,section,header,footer,article,h1,h2,h3,h4,h5,h6");
+  const textElements = doc.querySelectorAll("p,h1,h2,h3,h4,h5,h6");
   textElements.forEach(el => {
     if (el.children.length == 1 && el.children[0].tagName.toLowerCase() == "img") {
-      //子元素只有一个img标签，不处理
       return;
     }
     const warpper = doc.createElement("span")
