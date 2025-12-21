@@ -1,14 +1,16 @@
 <script setup lang="js">
 import JSZip from "jszip";
 import NoteCard from "@/components/NoteCard.vue";
-import { useResizeObserver, useScrollObserver } from '../js/useDOMObserver.js.js';
+import { useResizeObserver, useScrollObserver } from '../utils/useDOMObserver.js.js';
 import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick, h } from 'vue';
-import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
+import ResourceNotFoundError from '../utils/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
-import { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/js/utils.js";
+import { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/utils/utils.js";
 import PageSelector from "@/components/PageSelector.vue";
 
 import ChapterNotFound from "./ChapterNotFound.html?raw";
+import WatchImgDialog from "@/components/dialogs/WatchImgDialog.vue";
+
 //?raw是把html文件作为字符串导入
 
 const route = useRoute()
@@ -56,7 +58,7 @@ const chapterLoadType = computed(() => {
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test2.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -95,7 +97,6 @@ async function init() {
     const blobUrl = URL.createObjectURL(blob);
     chapters.value.push(blobUrl)
   }
-  // chapters.value = await Promise.all(promises);//此时chapters更新，DOM会刷新
   console.log("所有章节加载完毕", chapters.value)
 }
 
@@ -105,7 +106,7 @@ const isLNovel = ref(false);
 const bookRate = ref(1.4);//书籍开版/比例（高：宽），仅轻小说有效，默认1倍
 
 //轻小说优化器
-async function betterLNovel(index, iframe, chapterDoc) {
+async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
   const illusNames = ["插图", "插畫", "イラスト", "illustration", "Illustration", "彩插", "插画", "彩圖", "彩图", "illus", "彩页"];
 
@@ -157,18 +158,25 @@ async function betterLNovel(index, iframe, chapterDoc) {
   // 2.观测svg也撑不开
   */
   function setImgFullWidth(imgEl) {
+    if( isReLoad ){
+      //如果是重新加载章节，就先移除旧的占位标签
+      const oldPlaceholder = chapterDoc.querySelector("div[img-placeholder]");
+      if( oldPlaceholder ){
+        oldPlaceholder.remove();
+      }
+    }
+
     const placeholder = chapterDoc.createElement("div")
     placeholder.style.width = `${width.value / 2}px`
     placeholder.style.height = `${height.value - pagePadding.value * 2}px`
+    placeholder.setAttribute("img-placeholder", "")
     if (imgEl.tagName.toLowerCase() === "image") {
-      if (imgEl.parentElement) {
         //那其父元素一定是svg标签
         imgEl.parentElement.style.height = `${height.value}px`;
         imgEl.parentElement.style.maxHeight = "none";
         imgEl.parentElement.style.width = `${width.value}px`;
         imgEl.parentElement.style.maxWidth = "none";
         imgEl.parentElement.after(placeholder)
-      }
       return
     }
     //如果不是image，在这里设置img标签样式
@@ -229,41 +237,6 @@ function scopeCss(cssText, prefix) {
       return `${brace}\n${scoped} {`;
     }
   );
-}
-
-function prevChapter() {
-  if (curChapterIndex.value > 0) {
-    curChapterIndex.value--;
-  }
-}
-
-function nextChapter() {
-  if (curChapterIndex.value < spineFiles.value.length - 1) {
-    curChapterIndex.value++;
-  }
-}
-
-function nextPage() {
-  const viewer = viewerRef.value;
-  //判断是否滚动到尾部
-  if (viewer.scrollLeft >= viewer.scrollWidth - viewer.clientWidth - 1) {
-    // 滚动距离是否大于等于总宽度减去可见宽度-1,如果比这还大,说明已经滚动到尾部了
-    console.log("已经滚动到尾部，翻到下一章节");
-    return;
-  }
-  const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
-  viewer.scrollLeft += pageWidth;
-}
-
-function prevPage() {
-  const viewer = viewerRef.value;
-  //判断是否滚动到顶部
-  if (viewer.scrollLeft <= 0) {
-    console.log("已经滚动到顶部，翻到上一章节");
-    return;
-  }
-  const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
-  viewer.scrollLeft -= pageWidth;
 }
 
 async function loadSpine(zip) {
@@ -364,12 +337,6 @@ watch(readProcess, (newVal) => {
   localStorage.setItem(bookHash.value, newVal);
 });
 
-function skipToPage(pageNum) {
-  const viewer = viewerRef.value;
-  const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
-  viewer.scrollLeft = (pageNum - 1) * pageWidth;
-}
-
 const isRecovered = ref(false);
 function recoverProcess() {
   const savedProcess = localStorage.getItem(bookHash.value);
@@ -382,18 +349,32 @@ function recoverProcess() {
   isRecovered.value = true;
 }
 
+function skipToPage(pageNum) {
+  const viewer = viewerRef.value;
+  const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
+  viewer.scrollLeft = (pageNum-2) * pageWidth;
+}
+
+function nextPage() {
+  skipToPage(currentPage.value+1);
+}
+
+function prevPage() {
+  skipToPage(currentPage.value - 1);
+}
 
 const width = ref(0);
 const height = ref(0);
 useResizeObserver(viewerRef, (rect) => {
-  console.log("阅读器容器尺寸变化：", rect);
+  console.warn("阅读器容器尺寸变化：", rect);
   width.value = rect.width;
   height.value = rect.height;
-  nextTick(() => {
+  loadViewer();
+  // nextTick(() => {
     //等会儿DOM更新完毕再设置
-    console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
-    loadViewer();
-  });
+    // console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
+    // loadViewer();
+  // });
 });
 
 
@@ -446,21 +427,29 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }
   }
 
-
   //更正成双开大小的style
+  if( isReLoad ){
+    //如果是重新加载章节，就先移除旧的style
+    const oldStyleEl = doc.head.querySelector("style[double-page-style]");
+    if( oldStyleEl ){
+      oldStyleEl.remove();
+    }
+  }
   const styleEl = doc.createElement("style");
+  styleEl.setAttribute("double-page-style","");
   styleEl.textContent = `
       body {
         margin:0;
         padding:0;
         box-sizing: border-box;
+        width: ${width.value/2}px;
         height: ${height.value}px;
         column-fill: auto;
         column-gap: 0px;
         column-width: ${width.value / 2}px;
         padding-top:${pagePadding.value}px;
         padding-bottom:${pagePadding.value}px;
-        overflow: hidden;
+        overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
       }
       svg,img,image{
         max-width: ${width.value / 2}px;
@@ -481,8 +470,10 @@ async function onIframeLoad(index, event, isReLoad = false) {
   svg标签则是作者指定会设置svg宽度/高度100%的情况
    */
 
+  //处理插画图片，使其顶格显示；同时产生看图器
   doc.querySelectorAll("img").forEach(imgEl => {
     if (isImgIllus(imgEl)) {
+
       if (imgEl.parentElement) {
         console.log("图片有父元素，检查父元素类型");
         const parent = imgEl.parentElement;
@@ -501,13 +492,13 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
     if (svgEl.getAttribute("width") == "100%" || svgEl.style.width == "100%") {
       svgEl.style.width = `${width.value / 2}px`
-      svgEl.style.position="relative"
+      svgEl.style.position = "relative"
       svgEl.style.top = `-${pagePadding.value}px`
     }
     if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
       // console.log("该标签高度有100%，执行一些逻辑")
       svgEl.style.height = `${height.value}px`
-      svgEl.style.position="relative"
+      svgEl.style.position = "relative"
       svgEl.style.top = `-${pagePadding.value}px`
     }
     svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
@@ -523,6 +514,16 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
 
   //处理文本标签的默认内边距
+  if( isReLoad ){
+    //如果是重新加载章节，就先移除旧的text-wrapper
+    const oldWrappers = doc.querySelectorAll("span[text-wrapper]");
+    oldWrappers.forEach(wrapper=>{
+      const parent = wrapper.parentElement;
+      if( parent ){
+        wrapper.replaceWith(...wrapper.childNodes);//把wrapper移除，直接用子节点替代
+      }
+    });
+  }
   const textElements = doc.querySelectorAll("p,h1,h2,h3,h4,h5,h6");
   textElements.forEach(el => {
     if (el.children.length == 1 && el.children[0].tagName.toLowerCase() == "img") {
@@ -533,6 +534,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     warpper.style.paddingRight = `${pagePadding.value}px`;
     warpper.style.boxSizing = "border-box";
     warpper.style.display = "block";
+    warpper.setAttribute("text-wrapper","");
     el.replaceWith(warpper);//这个api是把warpper放到el位置，然后el移除。而不是把让原来的el=warpper
     warpper.appendChild(el);
   });
@@ -546,7 +548,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   //特殊处理轻小说
   if (isLNovel.value) {
     console.log(`对${index}章节应用轻小说优化器`);
-    await betterLNovel(index, iframe, doc);
+    await betterLNovel(index, iframe, doc,isReLoad);
   }
 
   //防止p标签超过宽度
@@ -568,8 +570,12 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
   //防止横向滚动条出现
   console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
-  chapterEl.style.width = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2) + "px";
-
+  if(!iframeScrollEnabled.value){
+    if(isReLoad){
+      chapterEl.style.width="auto";//先清空旧的宽度设置
+    }
+    chapterEl.style.width = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2) + "px";
+  }
   //处理超链接
   const linkElements = doc.querySelectorAll("a[href]");
   for (let i = 0; i < linkElements.length; i++) {
@@ -640,10 +646,45 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }
   console.log("当前注释卡片列表：", noteCards.value);
 
+  //处理文档注释点击和翻页点击
   doc.addEventListener("click", (e) => {
     //除了注释以外的地方点击都隐藏注释卡片
     if (!(e.target.closest("a[epub\\:type='noteref'],a.duokan-footnote")))
       hideAllNoteCards();
+    //处理点击翻页
+    if(!isClickToTurnPageEnabled.value){
+      return;
+    }
+    const selection = iframe.contentWindow.getSelection();
+    // 判断是否有文本被选中
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+    const clickX = iframe.getBoundingClientRect().left + e.clientX
+    // console.log("章节文档点击事件，计算全局X位置：", clickX);
+    // console.log("视口的宽", window.innerWidth);
+    if(clickX<window.innerWidth/2){
+      prevPage();
+    }else{
+      nextPage();
+    }
+  })
+
+  //处理文档键盘翻页事件
+  doc.addEventListener("keydown", (e) => {
+    //按Esc键取消注释卡片显示
+    if (e.key === "Escape") {
+      hideAllNoteCards();
+    }
+    if(e.key === "ArrowLeft"){
+      //默认事件是滚动页面，这里要阻止
+      e.preventDefault();
+      prevPage();
+    }
+    if(e.key === "ArrowRight"){
+      e.preventDefault();
+      nextPage();
+    }
   })
 
   loadedChaptersCount.value++;
@@ -653,20 +694,25 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }
 }
 
+const isClickToTurnPageEnabled = ref(false);//是否启用点击翻页功能
 
 const chaptersRef = ref([]);//章节容器引用
 console.log("章节引用创建完毕")
 
 function loadViewer() {
+  console.log("当前章节加载数量：", loadedChaptersCount.value);
   if (loadedChaptersCount.value !== chapters.value.length) {
     console.log("章节尚未全部加载完毕，等待中...");
     return;//所有章节iframe未加载完毕就不执行
   }
+  isRecovered.value = false;//此时使得进度不被记录，待会儿调整好尺寸后调回去
   //设置章节容器双页显示
   console.log("chapterRef：", chaptersRef.value);
   for (let i = 0; i < chaptersRef.value.length; i++) {
+    console.log(`加载第${i}章节视图`);
     onIframeLoad(i, null, true);
   }
+  recoverProcess();//调整好尺寸后恢复进度
 
 }
 
@@ -900,6 +946,13 @@ function hideAllNoteCards() {
     noteCard.isShow = false;
   });
 }
+function closeAllDialog() {
+  //关闭所有对话框
+
+}
+
+//调试模式
+const iframeScrollEnabled = ref(false);
 
 </script>
 <template>
@@ -949,8 +1002,10 @@ iframe {
 }
 
 .viewer {
-  width: 1120px; //A4纸宽度
-  height: 800px;
+  // width: 1120px; //A4纸宽度
+  // height: 800px;
+  width: 100%;
+  height: 100vh;
   margin: 0 auto;
   // background-color: skyblue;
   white-space: nowrap; //防止章节div换行

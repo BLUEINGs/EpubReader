@@ -1,8 +1,8 @@
 <script setup lang="js">
 import JSZip from "jszip";
-import { useResizeObserver } from '../js/useDOMObserver.js.js';
+import { useResizeObserver } from '../utils/useDOMObserver.js.js';
 import { computed, onMounted, onUpdated, ref, watch, watchEffect,defineProps } from 'vue';
-import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
+import ResourceNotFoundError from '../utils/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
 const route = useRoute()
 

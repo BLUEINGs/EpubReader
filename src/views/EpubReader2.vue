@@ -1,9 +1,9 @@
 <script setup lang="js">
 import JSZip from "jszip";
 import ChapterViewer from '../components/ChapterViewer.vue';
-import { useResizeObserver } from '../js/useDOMObserver.js.js';
+import { useResizeObserver } from '../utils/useDOMObserver.js.js';
 import { computed, onMounted, onUpdated, ref, watch, watchEffect } from 'vue';
-import ResourceNotFoundError from '../js/ResourceNotFoundError.js';
+import ResourceNotFoundError from '../utils/ResourceNotFoundError.js';
 import { useRoute } from 'vue-router'
 const route = useRoute()
 
