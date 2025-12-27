@@ -10,7 +10,6 @@ import PageSelector from "@/components/PageSelector.vue";
 
 import ChapterNotFound from "./ChapterNotFound.html?raw";
 import WatchImgDialog from "@/components/dialogs/WatchImgDialog.vue";
-
 //?raw是把html文件作为字符串导入
 
 const route = useRoute()
@@ -58,7 +57,7 @@ const chapterLoadType = computed(() => {
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
 async function init() {
-  const response = await fetch('/test2.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -112,6 +111,17 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
   const title = chapterDoc.head.querySelector("title")?.textContent || "未命名章节";
   const imgs = chapterDoc.querySelectorAll("img,image")
+
+  if (isReLoad) {
+    //如果是重新加载章节，就先移除旧的占位标签
+    const oldPlaceholder = chapterDoc.queryAllSelector("div[img-placeholder]");
+    if (oldPlaceholder) {
+      oldPlaceholder.forEach((el)=> {
+        el.remove()
+      })
+    }
+  }
+
   for (let i = 0; i < imgs.length; i++) {
     const imgEl = imgs[i];
     //计算图片显示尺寸
@@ -158,25 +168,17 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
   // 2.观测svg也撑不开
   */
   function setImgFullWidth(imgEl) {
-    if( isReLoad ){
-      //如果是重新加载章节，就先移除旧的占位标签
-      const oldPlaceholder = chapterDoc.querySelector("div[img-placeholder]");
-      if( oldPlaceholder ){
-        oldPlaceholder.remove();
-      }
-    }
-
     const placeholder = chapterDoc.createElement("div")
     placeholder.style.width = `${width.value / 2}px`
     placeholder.style.height = `${height.value - pagePadding.value * 2}px`
     placeholder.setAttribute("img-placeholder", "")
     if (imgEl.tagName.toLowerCase() === "image") {
-        //那其父元素一定是svg标签
-        imgEl.parentElement.style.height = `${height.value}px`;
-        imgEl.parentElement.style.maxHeight = "none";
-        imgEl.parentElement.style.width = `${width.value}px`;
-        imgEl.parentElement.style.maxWidth = "none";
-        imgEl.parentElement.after(placeholder)
+      //那其父元素一定是svg标签
+      imgEl.parentElement.style.height = `${height.value}px`;
+      imgEl.parentElement.style.maxHeight = "none";
+      imgEl.parentElement.style.width = `${width.value}px`;
+      imgEl.parentElement.style.maxWidth = "none";
+      imgEl.parentElement.after(placeholder)
       return
     }
     //如果不是image，在这里设置img标签样式
@@ -317,6 +319,7 @@ useScrollObserver(viewerRef, updatePagesParams);
 
 //这里的逻辑是滚动=>更新页码和进度
 function updatePagesParams(scrollInfo) {
+  console.log("滚动信息：", scrollInfo)
   totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
   currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2)) + 1;
   readProcess.value = ((scrollInfo.scrollLeft + width.value) / scrollInfo.scrollWidth * 100).toFixed(2);
@@ -352,39 +355,80 @@ function recoverProcess() {
 function skipToPage(pageNum) {
   const viewer = viewerRef.value;
   const pageWidth = viewer.clientWidth / 2; // 双页显示，每页宽度为容器宽度的一半
-  viewer.scrollLeft = (pageNum-2) * pageWidth;
+  viewer.scrollLeft = (pageNum - 2) * pageWidth;
 }
 
 function nextPage() {
-  skipToPage(currentPage.value+1);
+  skipToPage(currentPage.value + 1);
 }
 
 function prevPage() {
   skipToPage(currentPage.value - 1);
 }
 
+const wapperRef = ref(null);//外层适配包裹容器引用
+const autoBestFitEnabled = ref(true);//是否启用自动最佳适应
 const width = ref(0);
 const height = ref(0);
-useResizeObserver(viewerRef, (rect) => {
+useResizeObserver(wapperRef, (rect) => {
   console.warn("阅读器容器尺寸变化：", rect);
-  width.value = rect.width;
-  height.value = rect.height;
+  //viewRef尺寸变化->更新width和height（是给iframe用的）->加载阅读器视图
+  if (autoBestFitEnabled.value) {
+    //自动最佳适应逻辑
+    autuBestFit(rect);
+  } else {
+    width.value = Math.round(rect.width);
+    height.value = rect.height;
+  }
   loadViewer();
   // nextTick(() => {
-    //等会儿DOM更新完毕再设置
-    // console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
-    // loadViewer();
+  //等会儿DOM更新完毕再设置
+  // console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
+  // loadViewer();
   // });
 });
 
+function autuBestFit(rect) {
+  const viewportRate = rect.width / rect.height;
+  console.log("视口比例：", viewportRate);
+  if (isLNovel.value) {
+    //轻小说按书籍开版比例适应
+    console.log("按轻小说书籍开版比例适应：", bookRate.value);
+    if (viewportRate < bookRate.value) {
+      //视口更高，按宽度适应
+      width.value = Math.round(rect.width);
+      height.value = Math.round(rect.width / bookRate.value);
+      viewerRef.value.style.width = `${width.value}px`;
+      viewerRef.value.style.height = `${height.value}px`;
+    } else {
+      //视口更宽，按高度适应
+      height.value = Math.round(rect.height);
+      width.value = Math.round(rect.height * bookRate.value);
+      viewerRef.value.style.width = `${width.value}px`;
+      viewerRef.value.style.height = `${height.value}px`;
+    }
+  }
 
+}
+
+const imgIllusMap = ref(new Map());//插画图片映射表，键为imgEl，值为true/false
 function isImgIllus(imgEl) {
+  const blobUrl = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href") || imgEl;
+  if (blobUrl && imgIllusMap.value.has(blobUrl)) {
+    return imgIllusMap.value.get(blobUrl);
+  }
+  let isIllus = false;
   if (imgEl.tagName.toLowerCase() === "image") {
     const parent = imgEl.parentElement;
-    return (parent.getAttribute("width") == "100%" || parent.style.width == "100%"
+    isIllus = (parent.getAttribute("width") == "100%" || parent.style.width == "100%"
       || parent.getAttribute("height") == "100%" || parent.style.height == "100%")
+  } else {
+    isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
   }
-  return (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10)
+  if (blobUrl) {
+    imgIllusMap.value.set(blobUrl, isIllus);
+  }
+  return isIllus;
 }
 
 const noteCards = ref([]);//注释卡片引用列表
@@ -394,13 +438,10 @@ const pagePadding = ref(30);//页内边距，单位px
 
 const loadedChaptersCount = ref(0);//已加载章节计数
 async function onIframeLoad(index, event, isReLoad = false) {
+
   console.log("设置章节容器样式：", index);
   //设置iframe样式，主要是阅读器尺寸。
   const iframe = chaptersRef.value[index]
-  iframe.style.height = `${height.value}px`;
-  iframe.style.minWidth = `${width.value / 2}px`;
-  iframe.style.overflow = "hidden";
-  // iframe.style.paddingRight = `${pagePadding.value*2}px`;
   //设置iframe内文档样式
   const chapterEl = iframe;
   const doc = chapterEl.contentDocument
@@ -411,6 +452,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (imgElements.length == 1) {
       // 标记为轻小说
       isLNovel.value = true;
+      autuBestFit(viewerRef.value.getBoundingClientRect());//重新计算阅读器尺寸
       console.log("检测到轻小说格式，启用轻小说优化器");
       //获取图片分辨率，计算书籍开版比例
       const imgEl = imgElements[0];
@@ -427,22 +469,28 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }
   }
 
+  iframe.style.height = `${height.value}px`;
+  iframe.style.minWidth = `${width.value / 2}px`;
+  iframe.style.overflow = "hidden";
+  // iframe.style.paddingRight = `${pagePadding.value*2}px`;
+
+
   //更正成双开大小的style
-  if( isReLoad ){
+  if (isReLoad) {
     //如果是重新加载章节，就先移除旧的style
     const oldStyleEl = doc.head.querySelector("style[double-page-style]");
-    if( oldStyleEl ){
+    if (oldStyleEl) {
       oldStyleEl.remove();
     }
   }
   const styleEl = doc.createElement("style");
-  styleEl.setAttribute("double-page-style","");
+  styleEl.setAttribute("double-page-style", "");
   styleEl.textContent = `
       body {
         margin:0;
         padding:0;
         box-sizing: border-box;
-        width: ${width.value/2}px;
+        width: ${width.value / 2}px;
         height: ${height.value}px;
         column-fill: auto;
         column-gap: 0px;
@@ -514,12 +562,12 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
 
   //处理文本标签的默认内边距
-  if( isReLoad ){
+  if (isReLoad) {
     //如果是重新加载章节，就先移除旧的text-wrapper
     const oldWrappers = doc.querySelectorAll("span[text-wrapper]");
-    oldWrappers.forEach(wrapper=>{
+    oldWrappers.forEach(wrapper => {
       const parent = wrapper.parentElement;
-      if( parent ){
+      if (parent) {
         wrapper.replaceWith(...wrapper.childNodes);//把wrapper移除，直接用子节点替代
       }
     });
@@ -534,7 +582,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     warpper.style.paddingRight = `${pagePadding.value}px`;
     warpper.style.boxSizing = "border-box";
     warpper.style.display = "block";
-    warpper.setAttribute("text-wrapper","");
+    warpper.setAttribute("text-wrapper", "");
     el.replaceWith(warpper);//这个api是把warpper放到el位置，然后el移除。而不是把让原来的el=warpper
     warpper.appendChild(el);
   });
@@ -548,7 +596,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   //特殊处理轻小说
   if (isLNovel.value) {
     console.log(`对${index}章节应用轻小说优化器`);
-    await betterLNovel(index, iframe, doc,isReLoad);
+    await betterLNovel(index, iframe, doc, isReLoad);
   }
 
   //防止p标签超过宽度
@@ -570,9 +618,9 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
   //防止横向滚动条出现
   console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
-  if(!iframeScrollEnabled.value){
-    if(isReLoad){
-      chapterEl.style.width="auto";//先清空旧的宽度设置
+  if (!iframeScrollEnabled.value) {
+    if (isReLoad) {
+      chapterEl.style.width = "auto";//先清空旧的宽度设置
     }
     chapterEl.style.width = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2) + "px";
   }
@@ -652,7 +700,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (!(e.target.closest("a[epub\\:type='noteref'],a.duokan-footnote")))
       hideAllNoteCards();
     //处理点击翻页
-    if(!isClickToTurnPageEnabled.value){
+    if (!isClickToTurnPageEnabled.value) {
       return;
     }
     const selection = iframe.contentWindow.getSelection();
@@ -663,9 +711,9 @@ async function onIframeLoad(index, event, isReLoad = false) {
     const clickX = iframe.getBoundingClientRect().left + e.clientX
     // console.log("章节文档点击事件，计算全局X位置：", clickX);
     // console.log("视口的宽", window.innerWidth);
-    if(clickX<window.innerWidth/2){
+    if (clickX < window.innerWidth / 2) {
       prevPage();
-    }else{
+    } else {
       nextPage();
     }
   })
@@ -676,12 +724,12 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (e.key === "Escape") {
       hideAllNoteCards();
     }
-    if(e.key === "ArrowLeft"){
+    if (e.key === "ArrowLeft") {
       //默认事件是滚动页面，这里要阻止
       e.preventDefault();
       prevPage();
     }
-    if(e.key === "ArrowRight"){
+    if (e.key === "ArrowRight") {
       e.preventDefault();
       nextPage();
     }
@@ -961,15 +1009,17 @@ const iframeScrollEnabled = ref(false);
     <PageSelector @update:selectedPage="skipToPage" :selectedPage="currentPage" :totalPages="totalPages" />
     <button @click="nextPage">下一页</button>
   </div>
-  <div ref="viewerRef" class="viewer">
-    <template v-for="(noteCard, index) in noteCards" :key="index">
-      <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
-      <NoteCard v-if="noteCard?.isShow" :noteRefRect="noteCard.noteRefRect">
-        <div v-html="noteCard.note.outerHTML"></div>
-      </NoteCard>
-    </template>
-    <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
-      :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
+  <div ref="wapperRef" class="fitWapper">
+    <div ref="viewerRef" class="viewer">
+      <template v-for="(noteCard, index) in noteCards" :key="index">
+        <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
+        <NoteCard v-if="noteCard?.isShow" :noteRefRect="noteCard.noteRefRect">
+          <div v-html="noteCard.note.outerHTML"></div>
+        </NoteCard>
+      </template>
+      <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
+        :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
+    </div>
   </div>
 </template>
 <style scoped lang="less">
@@ -1001,21 +1051,29 @@ iframe {
   vertical-align: top;
 }
 
-.viewer {
-  // width: 1120px; //A4纸宽度
-  // height: 800px;
+.fitWapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
   height: 100vh;
-  margin: 0 auto;
-  // background-color: skyblue;
-  white-space: nowrap; //防止章节div换行
-  overflow: hidden;
-  background-color: antiquewhite;
 
-  div {
-    vertical-align: top;
+  .viewer {
+    // width: 1120px; //A4纸宽度
+    // height: 800px;
+    width: 100%;
+    height: 100vh;
+    margin: 0 auto;
+    // background-color: skyblue;
+    white-space: nowrap; //防止章节div换行
+    overflow: hidden;
+    background-color: antiquewhite;
+
+    div {
+      vertical-align: top;
+    }
+
   }
-
 }
 
 .link-button {
