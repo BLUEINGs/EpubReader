@@ -56,8 +56,9 @@ const chapterLoadType = computed(() => {
 
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
 //初始化：获取章节文件列表
+const isInited = ref(false)
 async function init() {
-  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  const response = await fetch('/test9.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
   const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
@@ -97,6 +98,7 @@ async function init() {
     chapters.value.push(blobUrl)
   }
   console.log("所有章节加载完毕", chapters.value)
+  isInited.value = true
 }
 
 init();
@@ -114,11 +116,11 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
   if (isReLoad) {
     //如果是重新加载章节，就先移除旧的占位标签
-    const oldPlaceholder = chapterDoc.queryAllSelector("div[img-placeholder]");
+    const oldPlaceholder = chapterDoc.querySelectorAll("div[img-placeholder]");
     if (oldPlaceholder) {
-      oldPlaceholder.forEach((el)=> {
-        el.remove()
-      })
+      for (let i = 0; i < oldPlaceholder.length; i++) {
+        oldPlaceholder[i].remove()
+      }
     }
   }
 
@@ -178,6 +180,7 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
       imgEl.parentElement.style.maxHeight = "none";
       imgEl.parentElement.style.width = `${width.value}px`;
       imgEl.parentElement.style.maxWidth = "none";
+      // console.log("为",imgEl,"添加占位")
       imgEl.parentElement.after(placeholder)
       return
     }
@@ -315,40 +318,58 @@ async function getResource(curFilePath, src, type = "blobUrl") {
 const readProcess = ref(0);
 const totalPages = ref(0);
 const currentPage = ref(0);
+const iframeWidthList=ref([])
 useScrollObserver(viewerRef, updatePagesParams);
 
 //这里的逻辑是滚动=>更新页码和进度
 function updatePagesParams(scrollInfo) {
   console.log("滚动信息：", scrollInfo)
+  // roundToNearestMultiple()
   totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
   currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2)) + 1;
-  readProcess.value = ((scrollInfo.scrollLeft + width.value) / scrollInfo.scrollWidth * 100).toFixed(2);
-  console.log(`当前页码：${currentPage.value} / ${totalPages.value}，阅读进度：${readProcess.value}%`);
+  readProcess.value = getCurProcess(scrollInfo);
+  console.log(`当前页码：${currentPage.value} / ${totalPages.value}`);
+}
+
+function getCurProcess(scrollInfo){
+  let totalWidth=0
+  let i=0
+  while(totalWidth<scrollInfo.scrollLeft+(width.value/2)-5&&i<iframeWidthList.value.length){
+    totalWidth+=iframeWidthList.value[i]
+    i++//当前章节索引
+  }
+  const chapterIndex=i-1
+  console.log("当前totalWidth:",totalWidth,"当前scrollLeft:",scrollInfo.scrollLeft)
+  const innerProcess=(iframeWidthList.value[chapterIndex]-(totalWidth-scrollInfo.scrollLeft))/iframeWidthList.value[chapterIndex]
+  return {chapterIndex: chapterIndex,innerProcess: innerProcess}
 }
 
 function loadPagesParams() {
   const viewer = viewerRef.value;
-  totalPages.value = Math.ceil(viewer.scrollWidth / (width.value / 2));
-  currentPage.value = Math.ceil((viewer.scrollLeft + 1) / (width.value / 2)) + 1;
-  readProcess.value = ((viewer.scrollLeft + width.value) / viewer.scrollWidth * 100).toFixed(2);
-  console.log(`当前页码：${currentPage.value} / ${totalPages.value}，阅读进度：${readProcess.value}%`);
+  updatePagesParams(viewer)
 }
 
 //进度记录器
 watch(readProcess, (newVal) => {
   if (!isRecovered.value) return;//未恢复进度前不记录
-  localStorage.setItem(bookHash.value, newVal);
+  localStorage.setItem(bookHash.value, JSON.stringify(newVal));
 });
 
 const isRecovered = ref(false);
 function recoverProcess() {
-  const savedProcess = localStorage.getItem(bookHash.value);
+  const savedProcess = JSON.parse(localStorage.getItem(bookHash.value));
   if (savedProcess) {
-    console.log("恢复阅读进度：", savedProcess);
+    console.log("阅读进度：", savedProcess);
     const viewer = viewerRef.value;
-    const scrollLeft = (parseFloat(savedProcess) / 100) * viewer.scrollWidth - width.value;
+    let scrollLeft=0;
+    for(let i=0;i<savedProcess.chapterIndex;i++){
+      scrollLeft+=iframeWidthList.value[i]
+    }
+    scrollLeft+=savedProcess.innerProcess*iframeWidthList.value[savedProcess.chapterIndex];
+    console.log("滚动到：",scrollLeft)
     viewer.scrollLeft = roundToNearestMultiple(scrollLeft, width.value / 2);
   }
+  // setTimeout(()=>{})
   isRecovered.value = true;
 }
 
@@ -371,7 +392,12 @@ const autoBestFitEnabled = ref(true);//是否启用自动最佳适应
 const width = ref(0);
 const height = ref(0);
 useResizeObserver(wapperRef, (rect) => {
+  if (!isInited.value) {
+    return
+  }
   console.warn("阅读器容器尺寸变化：", rect);
+  // const oldWidth = width.value
+  // const oldHeight = width.value
   //viewRef尺寸变化->更新width和height（是给iframe用的）->加载阅读器视图
   if (autoBestFitEnabled.value) {
     //自动最佳适应逻辑
@@ -380,7 +406,18 @@ useResizeObserver(wapperRef, (rect) => {
     width.value = Math.round(rect.width);
     height.value = rect.height;
   }
-  loadViewer();
+  isRecovered.value = false
+  loadViewer().then(() => {
+    console.log("调整至原先阅读位置")
+    recoverProcess()
+    /*  if(width.value>oldWidth){
+       skipToPage(currentPage.value+1)
+     }else{
+       skipToPage(currentPage.value-1)
+     } */
+    // skipToPage(currentPage.value)
+  });
+
   // nextTick(() => {
   //等会儿DOM更新完毕再设置
   // console.log("阅读器容器尺寸更新完毕，开始加载阅读器视图");
@@ -413,9 +450,12 @@ function autuBestFit(rect) {
 
 const imgIllusMap = ref(new Map());//插画图片映射表，键为imgEl，值为true/false
 function isImgIllus(imgEl) {
-  const blobUrl = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href") || imgEl;
-  if (blobUrl && imgIllusMap.value.has(blobUrl)) {
-    return imgIllusMap.value.get(blobUrl);
+  // const blobUrl = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href") || imgEl;
+  // if (blobUrl && imgIllusMap.value.has(blobUrl)) {
+  // return imgIllusMap.value.get(blobUrl);
+  // }
+  if (imgIllusMap.value.has(imgEl)) {
+    return imgIllusMap.value.get(imgEl)
   }
   let isIllus = false;
   if (imgEl.tagName.toLowerCase() === "image") {
@@ -425,9 +465,10 @@ function isImgIllus(imgEl) {
   } else {
     isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
   }
-  if (blobUrl) {
-    imgIllusMap.value.set(blobUrl, isIllus);
-  }
+  imgIllusMap.value.set(imgEl, isIllus)
+  // if (blobUrl) {
+  // imgIllusMap.value.set(blobUrl, isIllus);
+  // }
   return isIllus;
 }
 
@@ -452,7 +493,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (imgElements.length == 1) {
       // 标记为轻小说
       isLNovel.value = true;
-      autuBestFit(viewerRef.value.getBoundingClientRect());//重新计算阅读器尺寸
+      autuBestFit(wapperRef.value.getBoundingClientRect());//重新计算阅读器尺寸
       console.log("检测到轻小说格式，启用轻小说优化器");
       //获取图片分辨率，计算书籍开版比例
       const imgEl = imgElements[0];
@@ -503,6 +544,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
         max-width: ${width.value / 2}px;
         max-height: ${height.value}px;
         object-fit: contain;
+        transition:all 0.2s ease;
       }
       /* p,h1,h2,h3,h4,h5,h6 {
         box-sizing: border-box;
@@ -617,12 +659,14 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }); */
 
   //防止横向滚动条出现
-  console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
+  // console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
   if (!iframeScrollEnabled.value) {
     if (isReLoad) {
       chapterEl.style.width = "auto";//先清空旧的宽度设置
     }
-    chapterEl.style.width = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2) + "px";
+    const widthValue= roundToNearestMultiple(doc.body.scrollWidth, width.value / 2)
+    chapterEl.style.width = widthValue + "px";
+    iframeWidthList.value[index]=(widthValue)
   }
   //处理超链接
   const linkElements = doc.querySelectorAll("a[href]");
@@ -747,21 +791,28 @@ const isClickToTurnPageEnabled = ref(false);//是否启用点击翻页功能
 const chaptersRef = ref([]);//章节容器引用
 console.log("章节引用创建完毕")
 
-function loadViewer() {
+const isLoading = ref(false)
+async function loadViewer() {
+  if (isLoading.value) {
+    return
+  }
+  // isLoading.value = true
+  console.log("***加载开始***")
   console.log("当前章节加载数量：", loadedChaptersCount.value);
   if (loadedChaptersCount.value !== chapters.value.length) {
     console.log("章节尚未全部加载完毕，等待中...");
     return;//所有章节iframe未加载完毕就不执行
   }
-  isRecovered.value = false;//此时使得进度不被记录，待会儿调整好尺寸后调回去
   //设置章节容器双页显示
   console.log("chapterRef：", chaptersRef.value);
+  const loadTasks = [];
   for (let i = 0; i < chaptersRef.value.length; i++) {
     console.log(`加载第${i}章节视图`);
-    onIframeLoad(i, null, true);
+    loadTasks.push(onIframeLoad(i, null, true));
   }
-  recoverProcess();//调整好尺寸后恢复进度
-
+  await Promise.all(loadTasks)
+  console.log("***加载结束***")
+  // isLoading.value = false;
 }
 
 onUpdated(() => {
@@ -1010,13 +1061,13 @@ const iframeScrollEnabled = ref(false);
     <button @click="nextPage">下一页</button>
   </div>
   <div ref="wapperRef" class="fitWapper">
+    <template v-for="(noteCard, index) in noteCards" :key="index">
+      <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
+      <NoteCard v-if="noteCard?.isShow" :noteRefRect="noteCard.noteRefRect">
+        <div v-html="noteCard.note.outerHTML"></div>
+      </NoteCard>
+    </template>
     <div ref="viewerRef" class="viewer">
-      <template v-for="(noteCard, index) in noteCards" :key="index">
-        <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
-        <NoteCard v-if="noteCard?.isShow" :noteRefRect="noteCard.noteRefRect">
-          <div v-html="noteCard.note.outerHTML"></div>
-        </NoteCard>
-      </template>
       <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
         :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
     </div>
@@ -1064,10 +1115,14 @@ iframe {
     width: 100%;
     height: 100vh;
     margin: 0 auto;
-    // background-color: skyblue;
     white-space: nowrap; //防止章节div换行
     overflow: hidden;
     background-color: antiquewhite;
+    transition: all 0.2s ease;
+
+    iframe {
+      transition: all 0.2s ease;
+    }
 
     div {
       vertical-align: top;

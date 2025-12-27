@@ -1,18 +1,27 @@
 // useResizeObserver.js
 import { onMounted, onBeforeUnmount } from 'vue'
 
-export function useResizeObserver(elRef, callback) {
+export function useResizeObserver(elRef, callback, delay = 300) {
   let observer = null
+  let timer = null
 
   onMounted(() => {
     observer = new ResizeObserver(entries => {
-      callback(entries[0].contentRect)
+      if (timer) clearTimeout(timer)
+
+      timer = setTimeout(() => {
+        callback(entries[0].contentRect)
+      }, delay)
     })
-    observer.observe(elRef.value)
+
+    if (elRef.value) {
+      observer.observe(elRef.value)
+    }
   })
 
   onBeforeUnmount(() => {
     observer?.disconnect()
+    if (timer) clearTimeout(timer)
   })
 }
 
