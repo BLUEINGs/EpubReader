@@ -18,16 +18,21 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue'),
     },
     {
-      path:'/reader',
-      name:'EpubReader',
+      path: '/reader',
+      name: 'EpubReader',
       // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
       component: () => import('../views/EpubReader.vue')
     },
     {
-      path:'/reader2',
-      name:'EpubReader2',
+      path: '/reader2',
+      name: 'EpubReader2',
       // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
       component: () => import('../views/EpubReader2.vue')
+    },
+    {
+      path: '/BookShelf',
+      name: 'BookShelf',
+      component: () => import('../views/BookShelf.vue')
     }
   ],
 })
