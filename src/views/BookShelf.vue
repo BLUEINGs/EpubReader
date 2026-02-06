@@ -130,7 +130,8 @@ loadAllBooks()
             <option value="title">名称</option>
           </select>
         </label>
-        <button class="icon-btn" @click="sortDir = sortDir === 'asc' ? 'desc' : 'asc'">{{ sortDir === 'asc' ? '升序' : '降序' }}</button>
+        <button class="icon-btn" @click="sortDir = sortDir === 'asc' ? 'desc' : 'asc'">{{ sortDir === 'asc' ? '升序' :
+          '降序' }}</button>
         <label class="ctrl bulk">
           <input type="checkbox" v-model="bulkMode" /> 批量操作
         </label>
@@ -143,11 +144,13 @@ loadAllBooks()
       <img class="last-cover" :src="lastBook.cover || 'default-cover.png'" alt="cover" />
       <div class="last-info">
         <h2 class="last-title">{{ lastBook.title }}</h2>
-        <p class="last-author">{{ lastBook.author || '未知作者' }}</p>
-        <div class="last-tags">
-          <span v-for="(t,i) in lastBook.tags || []" :key="i" class="tag">{{ t }}</span>
+        <div class="authorAndTags">
+          <p class="last-author">{{ lastBook.author || '未知作者' }}</p>
+          <div class="last-tags">
+            <span v-for="(t, i) in lastBook.tags || []" :key="i" class="tag">{{ t }}</span>
+          </div>
         </div>
-        <p class="last-abstract">{{ lastBook.abstract }}</p>
+        <p v-html="lastBook.abstract" class="last-abstract"></p>
         <div class="last-meta-row">
           <div class="progress">阅读进度：{{ lastBook.process || 0 }}%</div>
           <div class="puttime">放入时间：{{ new Date(lastBook.putTime || 0).toLocaleString() }}</div>
@@ -158,10 +161,10 @@ loadAllBooks()
     <div v-if="sortedBooks.length" class="shelf-grid">
       <div v-for="book in sortedBooks" :key="book.hashCode" class="grid-item">
         <label v-if="bulkMode" class="select-box">
-          <input type="checkbox" :checked="selected.includes(book.hashCode)" @change.stop="toggleSelect(book.hashCode)" />
+          <input type="checkbox" :checked="selected.includes(book.hashCode)"
+            @change.stop="toggleSelect(book.hashCode)" />
         </label>
         <BookCard :book="book" @open-book="openBook(book)" />
-        <button class="small-del" @click.stop="handleDelete(book)">删除</button>
       </div>
     </div>
 
@@ -171,40 +174,185 @@ loadAllBooks()
 
 
 <style lang="less">
-.bookshelf{
+.bookshelf {
   max-width: 980px;
   margin: 28px auto;
   padding: 20px;
-  background: linear-gradient(180deg,#ffffff,#fbfdff);
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
   border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(15,23,42,0.06);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
 }
 
-.toolbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px }
-.toolbar .left{ flex:1 }
-.file-input{ padding:8px 12px; border-radius:8px; border:1px dashed #e6eef8; background:#fbfdff }
-.toolbar .right{ display:flex; gap:10px; align-items:center }
-.ctrl{ font-size:13px; color:#374151 }
-.ctrl select{ margin-left:6px; padding:4px 8px }
-.icon-btn{ background:#eef2ff; border:none; padding:6px 10px; border-radius:8px; cursor:pointer }
-.small{ background:#eef0ff; border:none; padding:6px 8px; border-radius:8px; cursor:pointer }
-.danger{ background:#ffefef; border:none; color:#b91c1c; padding:6px 8px; border-radius:8px; cursor:pointer }
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px
+}
 
-.last-card{ display:flex; gap:16px; align-items:flex-start; padding:16px; border-radius:10px; background:linear-gradient(90deg,#ffffff,#f8fbff); cursor:pointer; margin-bottom:18px }
-.last-cover{ width:140px; height:180px; object-fit:cover; border-radius:8px }
-.last-info{ flex:1 }
-.last-title{ margin:0; font-size:20px; color:#0f172a }
-.last-author{ margin:6px 0; color:#6b7280 }
-.last-tags{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 }
-.last-abstract{ color:#374151; max-height:56px; overflow:hidden; text-overflow:ellipsis }
-.last-meta-row{ display:flex; justify-content:space-between; margin-top:12px; color:#6b7280 }
-.tag{ background:#eef2ff; color:#374151; padding:4px 8px; border-radius:8px; font-size:12px }
+.toolbar .left {
+  flex: 1
+}
 
-.shelf-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:16px }
-.grid-item{ position:relative }
-.select-box{ position:absolute; left:8px; top:8px; z-index:10; background:rgba(255,255,255,0.85); padding:4px; border-radius:6px }
-.small-del{ position:absolute; right:8px; bottom:8px; z-index:10; background:rgba(255,255,255,0.9); border:none; padding:6px 8px; border-radius:8px; cursor:pointer }
+.file-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed #e6eef8;
+  background: #fbfdff
+}
 
-.empty{ color:#9aa4b2; text-align:center; padding:40px 0 }
+.toolbar .right {
+  display: flex;
+  gap: 10px;
+  align-items: center
+}
 
+.ctrl {
+  font-size: 13px;
+  color: #374151
+}
+
+.ctrl select {
+  margin-left: 6px;
+  padding: 4px 8px
+}
+
+.icon-btn {
+  background: #eef2ff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer
+}
+
+.small {
+  background: #eef0ff;
+  border: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer
+}
+
+.danger {
+  background: #ffefef;
+  border: none;
+  color: #b91c1c;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer
+}
+
+.last-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ffffff, #f8fbff);
+  cursor: pointer;
+  margin-bottom: 18px
+}
+
+.last-cover {
+  width: 140px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 8px
+}
+
+.last-info {
+  flex: 1
+}
+
+.last-title {
+  margin: 0;
+  font-size: 20px;
+  color: #0f172a
+}
+
+.authorAndTags {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0;
+
+  .last-author {
+    margin: 6px 0;
+    color: #6b7280
+  }
+
+  .last-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 6px 0
+  }
+}
+
+
+
+.last-abstract {
+  color: #374151;
+  max-height: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-y: scroll;
+}
+
+.last-meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  color: #6b7280;
+
+
+}
+
+.tag {
+  background: #eef2ff;
+  color: #374151;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px
+}
+
+.shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px
+}
+
+.grid-item {
+  position: relative
+  // width:150px;
+}
+
+.select-box {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px;
+  border-radius: 6px
+}
+
+.small-del {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer
+}
+
+.empty {
+  color: #9aa4b2;
+  text-align: center;
+  padding: 40px 0
+}
 </style>
