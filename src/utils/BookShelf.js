@@ -1,7 +1,14 @@
 export class BookShelf {
+
+  static instance
   constructor() {
+    if (!BookShelf.instance) {
+      BookShelf.instance = this
+    } else {
+      return BookShelf.instance
+    }
     this.dbReady = new Promise((resolve, reject) => {
-      const request = indexedDB.open("reader", 1)
+      const request = indexedDB.open("reader", 4)
       request.onupgradeneeded = (event) => {
         this.db = event.target.result
 
@@ -12,6 +19,9 @@ export class BookShelf {
           })
 
           metadataStore.createIndex("title", "title", { unique: false })
+          metadataStore.createIndex("cover", "cover", { unique: false })
+          metadataStore.createIndex("author", "author", { unique: false })
+          metadataStore.createIndex("abstract", "abstract", { unique: false })
           metadataStore.createIndex("process", "process", { unique: false })
           metadataStore.createIndex("putTime", "putTime", { unique: true })
         }
@@ -44,14 +54,18 @@ export class BookShelf {
     metadataStore.put({
       hashCode: book.hashCode,
       title: book.title,
-      avator: book.avator,
-      process: book.process
+      author: book.author,
+      cover: book.cover,
+      process: book.process,
+      abstract: book.abstract,
+      tags: book.tags,
+      putTime: book.putTime
     })
     const tx2 = this.db.transaction("binary", "readwrite")
     const binaryStore = tx2.objectStore("binary")
     binaryStore.put({
       hashCode: book.hashCode,
-      binary: book.binary
+      binary: book.arrayBuffer
     })
   }
 
@@ -64,13 +78,34 @@ export class BookShelf {
     binaryStore.delete(book.hashCode)
   }
 
+  async touchBook(hashCode, newTime = Date.now()) {
+    await this.dbReady
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction("metadata", "readwrite")
+      const store = tx.objectStore("metadata")
+      const getReq = store.get(hashCode)
+      getReq.onsuccess = () => {
+        const rec = getReq.result
+        if (!rec) return resolve(false)
+        const updated = Object.assign({}, rec, { putTime: newTime })
+        const putReq = store.put(updated)
+        putReq.onsuccess = () => resolve(true)
+        putReq.onerror = () => reject(putReq.error)
+      }
+      getReq.onerror = () => reject(getReq.error)
+    })
+  }
+
   async getBookByHashCode(hashCode) {
     await this.dbReady
     return new Promise((resolve, reject) => {
       const tx = this.db.transaction("binary", "readonly");
       const store = tx.objectStore("binary");
       const request = store.get(hashCode);
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        console.log("加载成功")
+        resolve(request.result);
+      }
       request.onerror = () => reject(request.error);
     });
   }
@@ -88,12 +123,16 @@ export class BookShelf {
 }
 
 export class Book {
-  constructor(hashCode, arrayBuffer, title, avator, process) {
+  constructor(hashCode, arrayBuffer,cover, title, author, process,putTime,abstract,tags) {
     this.hashCode = hashCode
+    this.cover=cover
     this.arrayBuffer = arrayBuffer
-    this.avator = avator
+    this.author = author
     this.process = process
+    this.abstract = abstract
+    this.tags = tags
     this.title = title
+    this.putTime = putTime
   }
 }
 

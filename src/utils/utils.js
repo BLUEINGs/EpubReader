@@ -134,8 +134,8 @@ function getGlobalRect(iframe, elementInIframe) {
   const elRect = elementInIframe.getBoundingClientRect();
   const iframeRect = iframe.getBoundingClientRect();
 
-  console.log('Element Rect in iframe:', elRect);
-  console.log('Iframe Rect in viewport:', iframeRect);
+  // console.log('Element Rect in iframe:', elRect);
+  // console.log('Iframe Rect in viewport:', iframeRect);
 
   return {
     top: iframeRect.top + elRect.top,
@@ -148,7 +148,6 @@ function getGlobalRect(iframe, elementInIframe) {
 }
 
 function getImageResolution(src) {
-  console.log('Getting image resolution for src:', src);
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -167,4 +166,67 @@ function roundToNearestMultiple(a, b) {
   return Math.round(a / b) * b;
 }
 
-export { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, getGlobalRect, getImageResolution, inlineComputedStylesFiltered };
+async function waitForSvgLoad(svgEl, {docBase = document.baseURI, timeout = 5000} = {}) {
+  if (!svgEl) return;
+  const imgs = [...svgEl.querySelectorAll('image, img')];
+
+  const loadPromises = imgs.map(el => {
+    const href = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src');
+    if (!href) return Promise.resolve();
+    return new Promise(resolve => {
+      try {
+        const url = new URL(href, docBase).href;
+        const img = new Image();
+        let done = false;
+        const settle = () => { if (!done) { done = true; resolve(); } };
+        img.onload = settle;
+        img.onerror = settle;
+        img.src = url;
+        // 有些情况下 Image 已经缓存完成
+        if (img.complete) settle();
+      } catch (e) {
+        // 非法 URL 直接跳过
+        resolve();
+      }
+    });
+  });
+
+  // 等待字体加载（若支持）和图片加载，且有超时保护
+  const fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  const allResources = Promise.all(loadPromises).then(() => fontsReady);
+  const timeoutPromise = new Promise(resolve => setTimeout(resolve, timeout));
+  await Promise.race([allResources, timeoutPromise]);
+}
+
+async function getImageDimensions(imgEl, docBase = document.baseURI) {
+  if (!imgEl) return null;
+  const tag = imgEl.tagName.toLowerCase();
+  if (tag === 'img') {
+    if (!imgEl.complete) {
+      try { await imgEl.decode(); } catch (e) { /* ignore */ }
+    }
+    return { width: imgEl.naturalWidth, height: imgEl.naturalHeight };
+  }
+  if (tag === 'image') {
+    const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.getAttribute('src');
+    if (!href) return null;
+    const url = new URL(href, docBase).href;
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob);
+      return { width: bitmap.width, height: bitmap.height };
+    } catch (e) {
+      // 回退到 Image()
+      return await new Promise(resolve => {
+        const tmp = new Image();
+        tmp.onload = () => resolve({ width: tmp.naturalWidth, height: tmp.naturalHeight });
+        tmp.onerror = () => resolve(null);
+        tmp.src = url;
+      });
+    }
+  }
+  return null;
+}
+
+export { waitForSvgLoad,roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, getGlobalRect, getImageResolution, inlineComputedStylesFiltered };

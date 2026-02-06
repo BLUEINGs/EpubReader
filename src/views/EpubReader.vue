@@ -4,8 +4,9 @@ import NoteCard from "@/components/NoteCard.vue";
 import { useResizeObserver, useScrollObserver } from '../utils/useDOMObserver.js.js';
 import { computed, onMounted, onUpdated, ref, watch, watchEffect, nextTick, h } from 'vue';
 import ResourceNotFoundError from '../utils/ResourceNotFoundError.js';
+import { BookShelf, Book } from "@/utils/BookShelf.js"
 import { useRoute } from 'vue-router'
-import { roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/utils/utils.js";
+import { waitForSvgLoad, roundToNearestMultiple, copyComputedStyle, inlineComputedStyles, inlineComputedStylesFiltered, getGlobalRect, getImageResolution } from "@/utils/utils.js";
 import PageSelector from "@/components/PageSelector.vue";
 
 import ChapterNotFound from "./ChapterNotFound.html?raw";
@@ -17,8 +18,12 @@ const route = useRoute()
 /*
 关于Promise对象：
 1.Promise刚开始既不是成功，也不是失败，而是处于等待态pending（没有被确定）
-2.当异步操作成功时，Promise对象的状态会变成fulfilled（成功），此时会调用then方法绑定的回调函数，并将异步操作的结果作为参数传递给回调函数。
+2.当异步操作成功时，Promise对象的状态会变成fulfilled（成功），此时会调用then方法绑定的回调函数，函并将异步操作的结果作为参数传递给回调数。
 3.当异步操作失败时，Promise对象的状态会变成rejected（失败），此时会调用catch方法绑定的回调函数，并将错误信息作为参数传
+4.Promose的构造函数：
+new Promise((resolve,reject)=>{
+  构造时传入一个函数，该函数有两个参数，这两个参数也是函数类型，当函数体内调用resolve或者reject时，该Promise对象结果确定
+})
 关于await Promise：
 1.await只能在async函数中使用，它会等待一个Promise对象的完成，并返回其的结果。
 2.当await后面的Promise对象变为fulfilled时，await表达式会返回该Promise的结果。
@@ -55,21 +60,34 @@ const chapterLoadType = computed(() => {
 
 
 const bookHash = ref("");//本书的HASH值，用于标识唯一书籍
+
+const props = defineProps({
+  hashCode: {
+    type: String,
+    required: true
+  }
+})
+
 //初始化：获取章节文件列表
 const isInited = ref(false)
 async function init() {
-  const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
-  const arrayBuffer = await response.arrayBuffer();
+  // const response = await fetch('/test8.epub');//fetch函数是现代浏览器的HTTP请求，这是直接请求到"public/test.epub"了
+  // const arrayBuffer = await response.arrayBuffer();
   //如果响应内容为一个文件，直接用arrayBuffer()方法把它读成二进制数据，Promise里面包的是二进制数据对象ArrayBuffer
 
   //异步计算HASH，然后确定书本ID。这里是我相信待会儿恢复阅读的时候这个值已经计算完毕了
-  crypto.subtle.digest('SHA-256', arrayBuffer).then(hashBuffer => {
+  /* crypto.subtle.digest('SHA-256', arrayBuffer).then(hashBuffer => {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     bookHash.value = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  });
+  }); */
 
+  // 书架实例
+  const bookShelf = new BookShelf()
+  const book = await bookShelf.getBookByHashCode(props.hashCode)
+  // console.log("文件内容：",arrayBuffer)
+  bookHash.value = props.hashCode
   // 解压
-  zip.value = await JSZip.loadAsync(arrayBuffer);
+  zip.value = await JSZip.loadAsync(book.binary);
   const [spineFilesList, rootfilePath] = await loadSpine(zip.value);//获取章节文件列表
   //此处加载的章节文件列表是相对于metadata.opf的路径，如"Text/chapter1.xhtml"
   // （我最早在这儿写成全局路径不就没这么多事了，实在是难蚌）
@@ -78,7 +96,7 @@ async function init() {
   //其实这个rootfilePath应该叫metadataPath更合适
   const lastIndex = rootfilePath.lastIndexOf('/')
   let rootDir = metadataOpfDir.value;//获取目录文件的路径，如"OEBPS"
-  console.log("章节文件位置：", rootDir);
+  // console.log("章节文件位置：", rootDir);
   //并且加载章节
   console.log("开始加载所有章节内容");
   // const promises = []
@@ -97,7 +115,7 @@ async function init() {
     const blobUrl = URL.createObjectURL(blob);
     chapters.value.push(blobUrl)
   }
-  console.log("所有章节加载完毕", chapters.value)
+  console.log("所有章节加载完毕")
   isInited.value = true
 }
 
@@ -109,9 +127,6 @@ const bookRate = ref(1.4);//书籍开版/比例（高：宽），仅轻小说有
 //轻小说优化器
 async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
-  const illusNames = ["插图", "插畫", "イラスト", "illustration", "Illustration", "彩插", "插画", "彩圖", "彩图", "illus", "彩页"];
-
-  const title = chapterDoc.head.querySelector("title")?.textContent || "未命名章节";
   const imgs = chapterDoc.querySelectorAll("img,image")
 
   if (isReLoad) {
@@ -129,18 +144,51 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
     //计算图片显示尺寸
     const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
     //处理双开图
-    await getImageResolution(src).then(size => {
-      console.log("轻小说图片分辨率：", size);
-      const imgRate = Math.round((size.width / size.height) * 100) / 100;
-      console.log("计算图片开版比例：", imgRate);
-      if ((isImgIllus(imgEl) && imgRate > 1)) {
-        console.log("图片被标记为插画，应用双页尺寸优化");
-        //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
-        setImgFullWidth(imgEl);
-        imgEl.style.position = "relative";
-        imgEl.style.top = `-${pagePadding.value}px`;
+    // 已加载图片，直接读
+    //img标签本来就有onload事件，这是原生js事件。eg:<img onload="funcation" />
+    let width;
+    let height;
+    // console.log("异步任务即将申请")
+    await new Promise((resolve, reject) => {
+      // console.log("异步任务已开始")
+      if (imgEl.tagName == "image") {
+        waitForSvgLoad(imgEl, chapterDoc.baseUrl, 7000).then(async () => {
+          await getImageResolution(src).then(resolution => {
+            width = resolution.width
+            height = resolution.height
+          }).catch(err => {
+            reject()
+            console.warn("svg图片加载失败");
+          });
+          resolve()
+        })
+      } else {
+        if (imgEl.complete) {
+          width = imgEl.naturalWidth
+          height = imgEl.naturalHeight
+          resolve()
+        }
+        imgEl.onload = () => {
+          width = imgEl.naturalWidth
+          height = imgEl.naturalHeight
+          resolve()
+        }
+      }
+      imgEl.onerror = () => {
+        reject()
+        throw new Error("图片加载失败")
       }
     })
+
+    const imgRate = Math.round((width / height) * 100) / 100
+    console.log("计算图片开版比例：", imgRate);
+    if ((isImgIllus(imgEl) && imgRate > 1)) {
+      console.log("图片被标记为插画，应用双页尺寸优化");
+      //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
+      setImgFullWidth(imgEl);
+      imgEl.style.position = "relative";
+      imgEl.style.top = `-${pagePadding.value}px`;
+    }
     //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
     if (isImgIllus(imgEl)) {
       if (imgEl.tagName.toLowerCase() != "image") {
@@ -249,7 +297,7 @@ async function loadSpine(zip) {
   const parser = new DOMParser();
   const containerDoc = parser.parseFromString(containerXml, "application/xml");
   const rootfilePath = containerDoc.querySelector("rootfile").getAttribute("full-path");
-  console.log("rootfile路径：", rootfilePath);
+  // console.log("rootfile路径：", rootfilePath);
   // 例如 "OEBPS/content.opf"
   const opfXml = await zip.file(rootfilePath).async("string");
   const opfDoc = parser.parseFromString(opfXml, "application/xml");
@@ -271,14 +319,14 @@ async function loadSpine(zip) {
 }
 
 function relativePathToAbsolutePath(curFilePath, src) {
-  console.log("原始资源路径：", src);
+  // console.log("原始资源路径：", src);
   //src是章节文件中引用的资源路径，如"../Images/pic1.jpg"
   //需要把它转换成zip中的路径，如"OEBPS/Images/pic1.jpg"
   const curDir = curFilePath.substring(0, curFilePath.lastIndexOf('/')).split('/');
   if (curDir.length == 1 && curDir[0] === "") {
     curDir.pop();//根目录特殊处理
   }
-  console.log("当前章节文件目录：", curDir);
+  // console.log("当前章节文件目录：", curDir);
   //获取当前章节文件所在目录，如["OEBPS","Text"]
   src = src.replace("../", () => {
     //这地方可能有异常，找到顶层路径了还继续../，记得后面加上异常抛出
@@ -295,7 +343,7 @@ function relativePathToAbsolutePath(curFilePath, src) {
 async function getResource(curFilePath, src, type = "blobUrl") {
   src = relativePathToAbsolutePath(curFilePath, src);
   //src现在是zip中的路径，如"OEBPS/Images/pic1.jpg"
-  console.log("解析资源路径：", src);
+  // console.log("解析资源路径：", src);
   const file = zip.value.file(src);
   if (!file) {
     throw new ResourceNotFoundError(`资源未找到：${src}`);
@@ -318,12 +366,12 @@ async function getResource(curFilePath, src, type = "blobUrl") {
 const readProcess = ref(0);
 const totalPages = ref(0);
 const currentPage = ref(0);
-const iframeWidthList=ref([])
+const iframeWidthList = ref([])
 useScrollObserver(viewerRef, updatePagesParams);
 
 //这里的逻辑是滚动=>更新页码和进度
 function updatePagesParams(scrollInfo) {
-  console.log("滚动信息：", scrollInfo)
+  // console.log("滚动信息：", scrollInfo)
   // roundToNearestMultiple()
   totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
   currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2)) + 1;
@@ -331,17 +379,17 @@ function updatePagesParams(scrollInfo) {
   console.log(`当前页码：${currentPage.value} / ${totalPages.value}`);
 }
 
-function getCurProcess(scrollInfo){
-  let totalWidth=0
-  let i=0
-  while(totalWidth<scrollInfo.scrollLeft+(width.value/2)-5&&i<iframeWidthList.value.length){
-    totalWidth+=iframeWidthList.value[i]
+function getCurProcess(scrollInfo) {
+  let totalWidth = 0
+  let i = 0
+  while (totalWidth < scrollInfo.scrollLeft + (width.value / 2) - 5 && i < iframeWidthList.value.length) {
+    totalWidth += iframeWidthList.value[i]
     i++//当前章节索引
   }
-  const chapterIndex=i-1
-  console.log("当前totalWidth:",totalWidth,"当前scrollLeft:",scrollInfo.scrollLeft)
-  const innerProcess=(iframeWidthList.value[chapterIndex]-(totalWidth-scrollInfo.scrollLeft))/iframeWidthList.value[chapterIndex]
-  return {chapterIndex: chapterIndex,innerProcess: innerProcess}
+  const chapterIndex = i - 1
+  // console.log("当前totalWidth:", totalWidth, "当前scrollLeft:", scrollInfo.scrollLeft)
+  const innerProcess = (iframeWidthList.value[chapterIndex] - (totalWidth - scrollInfo.scrollLeft)) / iframeWidthList.value[chapterIndex]
+  return { chapterIndex: chapterIndex, innerProcess: innerProcess }
 }
 
 function loadPagesParams() {
@@ -361,12 +409,11 @@ function recoverProcess() {
   if (savedProcess) {
     console.log("阅读进度：", savedProcess);
     const viewer = viewerRef.value;
-    let scrollLeft=0;
-    for(let i=0;i<savedProcess.chapterIndex;i++){
-      scrollLeft+=iframeWidthList.value[i]
+    let scrollLeft = 0;
+    for (let i = 0; i < savedProcess.chapterIndex; i++) {
+      scrollLeft += iframeWidthList.value[i]
     }
-    scrollLeft+=savedProcess.innerProcess*iframeWidthList.value[savedProcess.chapterIndex];
-    console.log("滚动到：",scrollLeft)
+    scrollLeft += savedProcess.innerProcess * iframeWidthList.value[savedProcess.chapterIndex];
     viewer.scrollLeft = roundToNearestMultiple(scrollLeft, width.value / 2);
   }
   // setTimeout(()=>{})
@@ -396,8 +443,8 @@ useResizeObserver(wapperRef, (rect) => {
     return
   }
   console.warn("阅读器容器尺寸变化：", rect);
-  // const oldWidth = width.value
-  // const oldHeight = width.value
+  const oldWidth = width.value
+  const oldHeight = height.value
   //viewRef尺寸变化->更新width和height（是给iframe用的）->加载阅读器视图
   if (autoBestFitEnabled.value) {
     //自动最佳适应逻辑
@@ -406,9 +453,27 @@ useResizeObserver(wapperRef, (rect) => {
     width.value = Math.round(rect.width);
     height.value = rect.height;
   }
+  if (document.querySelector("style[dynamic-iframe-style]")) {
+    document.querySelector("style[dynamic-iframe-style]").remove();
+  }
+  const styleEl = document.createElement("style");
+  styleEl.setAttribute("dynamic-iframe-style", "");
+  styleEl.textContent = `
+        iframe {
+          height: ${height.value}px;
+          min-width: ${width.value / 2}px;
+        }
+      `
+  document.head.appendChild(styleEl);
+
+  if(width.value == oldWidth && height.value == oldHeight) {
+    //尺寸没有实际变化，不需要重新加载阅读器视图，直接
+    console.log("尺寸未实际变化，无需重新加载阅读器视图")
+    return
+  }
   isRecovered.value = false
   loadViewer().then(() => {
-    console.log("调整至原先阅读位置")
+    // console.log("调整至原先阅读位置")
     recoverProcess()
     /*  if(width.value>oldWidth){
        skipToPage(currentPage.value+1)
@@ -426,6 +491,7 @@ useResizeObserver(wapperRef, (rect) => {
 });
 
 function autuBestFit(rect) {
+  console.log("autoBestFit函数被执行")
   const viewportRate = rect.width / rect.height;
   console.log("视口比例：", viewportRate);
   if (isLNovel.value) {
@@ -450,10 +516,6 @@ function autuBestFit(rect) {
 
 const imgIllusMap = ref(new Map());//插画图片映射表，键为imgEl，值为true/false
 function isImgIllus(imgEl) {
-  // const blobUrl = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href") || imgEl;
-  // if (blobUrl && imgIllusMap.value.has(blobUrl)) {
-  // return imgIllusMap.value.get(blobUrl);
-  // }
   if (imgIllusMap.value.has(imgEl)) {
     return imgIllusMap.value.get(imgEl)
   }
@@ -480,6 +542,13 @@ const pagePadding = ref(30);//页内边距，单位px
 const loadedChaptersCount = ref(0);//已加载章节计数
 async function onIframeLoad(index, event, isReLoad = false) {
 
+  if (index != 0 && (width.value == 0 || height.value == 0)) {
+    console.warn(`加载章节${index}时阅读器尺寸未确定，将延后加载`);
+    setTimeout(() => {
+      onIframeLoad(index, event)
+    }, 500);
+    return
+  }
   console.log("设置章节容器样式：", index);
   //设置iframe样式，主要是阅读器尺寸。
   const iframe = chaptersRef.value[index]
@@ -493,28 +562,46 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (imgElements.length == 1) {
       // 标记为轻小说
       isLNovel.value = true;
-      autuBestFit(wapperRef.value.getBoundingClientRect());//重新计算阅读器尺寸
       console.log("检测到轻小说格式，启用轻小说优化器");
       //获取图片分辨率，计算书籍开版比例
       const imgEl = imgElements[0];
       const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
-      getImageResolution(src).then(resolution => {
-        console.log("封面图片分辨率：", resolution);
-        bookRate.value = (resolution.height / resolution.width).toFixed(1);
+      await getImageResolution(src).then(resolution => {
+        // console.log("封面图片分辨率：", resolution);
+        bookRate.value = ((resolution.width / resolution.height) * 2);
         console.log("计算书籍开版比例：", bookRate.value);
       }).catch(err => {
         console.warn("获取封面图片分辨率失败，轻小说模式已禁用");
         console.error(err.message);
         isLNovel.value = false;
       });
+      if (autoBestFitEnabled.value) {
+        //自动最佳适应逻辑
+        autuBestFit(wapperRef.value.getBoundingClientRect());
+      } else {
+        width.value = Math.round(wapperRef.value.width);
+        height.value = wapperRef.value.height;
+      }
+
+      if (document.querySelector("style[dynamic-iframe-style]")) {
+        document.querySelector("style[dynamic-iframe-style]").remove();
+      }
+      const styleEl = document.createElement("style");
+      styleEl.setAttribute("dynamic-iframe-style", "");
+      styleEl.textContent = `
+        iframe {
+          height: ${height.value}px;
+          min-width: ${width.value / 2}px;
+        }
+      `
+      document.head.appendChild(styleEl);
+      // autuBestFit(wapperRef.value.getBoundingClientRect());//重新计算阅读器尺寸
     }
   }
 
   iframe.style.height = `${height.value}px`;
   iframe.style.minWidth = `${width.value / 2}px`;
   iframe.style.overflow = "hidden";
-  // iframe.style.paddingRight = `${pagePadding.value*2}px`;
-
 
   //更正成双开大小的style
   if (isReLoad) {
@@ -560,16 +647,17 @@ async function onIframeLoad(index, event, isReLoad = false) {
   svg标签则是作者指定会设置svg宽度/高度100%的情况
    */
 
-  //处理插画图片，使其顶格显示；同时产生看图器
+  //处理插画图片，使其顶格显示
   doc.querySelectorAll("img").forEach(imgEl => {
     if (isImgIllus(imgEl)) {
 
       if (imgEl.parentElement) {
-        console.log("图片有父元素，检查父元素类型");
         const parent = imgEl.parentElement;
         if (parent.tagName.toLowerCase() == "a") {
           //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
-          parent.style.marginTop = `-${pagePadding.value}px`;
+          parent.style.top = `-${pagePadding.value}px`;
+          parent.style.position = "relative";
+          return
         }
       }
       imgEl.style.position = "relative";
@@ -586,7 +674,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
       svgEl.style.top = `-${pagePadding.value}px`
     }
     if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
-      // console.log("该标签高度有100%，执行一些逻辑")
       svgEl.style.height = `${height.value}px`
       svgEl.style.position = "relative"
       svgEl.style.top = `-${pagePadding.value}px`
@@ -616,9 +703,17 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }
   const textElements = doc.querySelectorAll("p,h1,h2,h3,h4,h5,h6");
   textElements.forEach(el => {
-    if (el.children.length == 1 && el.children[0].tagName.toLowerCase() == "img") {
-      return;
-    }
+    let hasIllus = false;
+    el.querySelectorAll("img,image").forEach(imgEl => {
+      // console.log("检测文本标签内的图片：", imgEl);
+      if (isImgIllus(imgEl)) {
+        console.log("检测到文本标签内有插画图片，跳过添加内边距");
+        //如果文本标签内有插画图片，就不加内边距了，直接返回
+        hasIllus = true;
+        return;
+      }
+    });
+    if (hasIllus) return;
     const warpper = doc.createElement("span")
     warpper.style.paddingLeft = `${pagePadding.value}px`;
     warpper.style.paddingRight = `${pagePadding.value}px`;
@@ -659,14 +754,13 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }); */
 
   //防止横向滚动条出现
-  // console.log("当前章节body滚动宽度：", doc.body.scrollWidth)
   if (!iframeScrollEnabled.value) {
     if (isReLoad) {
       chapterEl.style.width = "auto";//先清空旧的宽度设置
     }
-    const widthValue= roundToNearestMultiple(doc.body.scrollWidth, width.value / 2)
+    const widthValue = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2)
     chapterEl.style.width = widthValue + "px";
-    iframeWidthList.value[index]=(widthValue)
+    iframeWidthList.value[index] = (widthValue)
   }
   //处理超链接
   const linkElements = doc.querySelectorAll("a[href]");
@@ -677,7 +771,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (!href) continue;
     const id = href.startsWith("#") ? href.slice(1) : href;
     el.onclick = (e) => {
-      console.log("点击了章节内超链接：", href);
       e.preventDefault();//阻止默认跳转行为
       if (href.startsWith("http://") || href.startsWith("https://")) {
         //外部链接，直接在新标签页打开
@@ -702,41 +795,41 @@ async function onIframeLoad(index, event, isReLoad = false) {
   if (isReLoad) return;
   //获取epub:type="noteref"的元素列表
   const noteRefElements = doc.querySelectorAll("a[epub\\:type='noteref'],a.duokan-footnote");
-  if (noteRefElements.length > 0) console.log("找到注释引用元素：", noteRefElements);
-  for (let i = 0; i < noteRefElements.length; i++) {
-    const el = noteRefElements[i];
-    //给注释引用元素绑定点击事件
-    el.addEventListener("click", (e) => {
-      const rect = getGlobalRect(iframe, el)
-      console.log("注释引用元素全局位置：", rect);
-      noteCards.value.forEach(noteCard => {
-        if (noteCard.noteRef === el) {
-          noteCard.noteRefRect = rect;//更新位置
-          noteCard.isShow = !noteCard.isShow;
-          console.log("切换注释卡片显示状态：", noteCard.isShow);
-        }
+  if (noteRefElements.length > 0) {
+    for (let i = 0; i < noteRefElements.length; i++) {
+      const el = noteRefElements[i];
+      //给注释引用元素绑定点击事件
+      el.addEventListener("click", (e) => {
+        const rect = getGlobalRect(iframe, el)
+        // console.log("注释引用元素全局位置：", rect);
+        noteCards.value.forEach(noteCard => {
+          if (noteCard.noteRef === el) {
+            noteCard.noteRefRect = rect;//更新位置
+            noteCard.isShow = !noteCard.isShow;
+            // console.log("切换注释卡片显示状态：", noteCard.isShow);
+          }
+        });
       });
-    });
-    //找到其对应的注释元素
-    const href = el.getAttribute("href");
-    if (!href) {
-      console.warn("外挂注释解析失败，以下注释引用元素缺少href属性，可能由书内js实现：", el);
-      continue;
+      //找到其对应的注释元素
+      const href = el.getAttribute("href");
+      if (!href) {
+        console.warn("外挂注释解析失败，以下注释引用元素缺少href属性，可能由书内js实现：", el);
+        continue;
+      }
+      const noteId = href.startsWith("#") ? href.slice(1) : href;
+      const noteEl = doc.getElementById(noteId);
+      if (noteEl) {
+        //在此处直接把样式复制到注释元素上
+        inlineComputedStylesFiltered(noteEl);
+        noteEl.querySelectorAll("script")?.forEach(scriptEl => scriptEl.remove());//移除脚本，防止注释内脚本执行
+        noteCards.value.push({ "note": noteEl, "noteRef": el, "noteRefRect": getGlobalRect(iframe, el), "isShow": false });
+      } else {
+        console.warn("未找到对应的注释元素：", noteId);
+      }
+      //移除注释元素在DOM中的位置，防止其占用空间
+      noteEl.remove();
     }
-    const noteId = href.startsWith("#") ? href.slice(1) : href;
-    const noteEl = doc.getElementById(noteId);
-    if (noteEl) {
-      //在此处直接把样式复制到注释元素上
-      inlineComputedStylesFiltered(noteEl);
-      noteEl.querySelectorAll("script")?.forEach(scriptEl => scriptEl.remove());//移除脚本，防止注释内脚本执行
-      noteCards.value.push({ "note": noteEl, "noteRef": el, "noteRefRect": getGlobalRect(iframe, el), "isShow": false });
-    } else {
-      console.warn("未找到对应的注释元素：", noteId);
-    }
-    //移除注释元素在DOM中的位置，防止其占用空间
-    noteEl.remove();
   }
-  console.log("当前注释卡片列表：", noteCards.value);
 
   //处理文档注释点击和翻页点击
   doc.addEventListener("click", (e) => {
@@ -789,7 +882,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
 const isClickToTurnPageEnabled = ref(false);//是否启用点击翻页功能
 
 const chaptersRef = ref([]);//章节容器引用
-console.log("章节引用创建完毕")
 
 const isLoading = ref(false)
 async function loadViewer() {
@@ -804,7 +896,7 @@ async function loadViewer() {
     return;//所有章节iframe未加载完毕就不执行
   }
   //设置章节容器双页显示
-  console.log("chapterRef：", chaptersRef.value);
+  // console.log("chapterRef：", chaptersRef.value);
   const loadTasks = [];
   for (let i = 0; i < chaptersRef.value.length; i++) {
     console.log(`加载第${i}章节视图`);
@@ -840,16 +932,16 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
   //处理各种资源
   for (let item of parseList) {
     const elements = doc.querySelectorAll(item.selection);
-    console.log(`找到${item.selection}元素：`, elements.length);
+    // console.log(`找到${item.selection}元素：`, elements.length);
     for (let i = 0; i < elements.length; i++) {
-      console.log(`处理第${i}个${item.selection}元素`);
+      // console.log(`处理第${i}个${item.selection}元素`);
       const el = elements[i];
       const attrValue = el.getAttribute(item.attrName);//属性值一般就是url路径，可能是相对路径
       //非空才操作
       if (attrValue) {
         //先检查缓存列表
         if (blobResourceCache.value.has(relativePathToAbsolutePath(curFilePath, attrValue))) {
-          console.log(`资源已缓存：`, attrValue);
+          // console.log(`资源已缓存：`, attrValue);
           if (item.postProcess) {
             //有后处理函数：取出缓存对象的prefix和blobUrl
             const blobUrl = blobResourceCache.value.get(relativePathToAbsolutePath(curFilePath, attrValue));
@@ -864,7 +956,7 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
         //有后续处理函数：使用后处理函数篡改资源内容后再设置属性
         if (item.postProcess) {
           try {
-            console.log(`获取并后处理${item.type}资源：`, attrValue);
+            // console.log(`获取并后处理${item.type}资源：`, attrValue);
             const newValue = await item.postProcess(await getResource(curFilePath, attrValue, "string"), relativePathToAbsolutePath(curFilePath, attrValue), curFilePath);
             const blobUrl = URL.createObjectURL(new Blob([newValue], { type: 'text/css' }));
             blobResourceCache.value.set(relativePathToAbsolutePath(curFilePath, attrValue), blobUrl);
@@ -947,7 +1039,7 @@ async function resolveCssResource(css, curFilePath) {
 
     const absolutePath = relativePathToAbsolutePath(curFilePath, m.path);
     if (blobResourceCache.value.has(absolutePath)) {
-      console.log(`资源已缓存：`, m.path);
+      // console.log(`资源已缓存：`, m.path);
       blobUrl = blobResourceCache.value.get(absolutePath);
       css = css.replace(m.full, `url('${blobUrl}')`);
       continue;//跳过后续处理
@@ -983,14 +1075,14 @@ async function resolveCssResource(css, curFilePath) {
     let blobUrl = m.path;
     const absolutePath = relativePathToAbsolutePath(curFilePath, m.path);
     if (blobResourceCache.value.has(absolutePath)) {
-      console.log(`资源已缓存：`, m.path);
+      // console.log(`资源已缓存：`, m.path);
       blobUrl = blobResourceCache.value.get(absolutePath);
       css = css.replace(m.full, `@import url('${blobUrl}');`);
       continue;//跳过后续处理
     }
     try {
       let linkedCss = await getResource(curFilePath, m.path, "string");
-      console.log("获取到被import的css内容，开始递归处理：", absolutePath);
+      // console.log("获取到被import的css内容，开始递归处理：", absolutePath);
       linkedCss = await resolveCssResource(linkedCss, absolutePath);//递归处理被import的css资源
       const blob = new Blob([linkedCss], { type: 'text/css' });
       blobUrl = URL.createObjectURL(blob);

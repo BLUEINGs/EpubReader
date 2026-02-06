@@ -18,10 +18,11 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue'),
     },
     {
-      path: '/reader',
+      path: '/reader/:hashCode',
       name: 'EpubReader',
       // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
-      component: () => import('../views/EpubReader.vue')
+      component: () => import('../views/EpubReader.vue'),
+      props: true
     },
     {
       path: '/reader2',
