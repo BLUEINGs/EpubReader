@@ -18,6 +18,7 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue'),
     },
     {
+      //现在的路径参数可以直接在组件中通过props接收了，不需要再使用$route.params了
       path: '/reader/:hashCode',
       name: 'EpubReader',
       // @ts-ignore: Vue SFC types (add a shims-vue.d.ts to declare '*.vue' modules for a proper fix)
