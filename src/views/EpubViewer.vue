@@ -1,8 +1,8 @@
 <script setup lang="js">
 import JSZip from "jszip";
 import NoteCard from "@/components/NoteCard.vue";
-import { useResizeObserver, useScrollObserver } from '../utils/useDOMObserver.js';
-import { computed, onMounted, onUpdated, ref, watch, nextTick } from 'vue';
+import { useResizeObserver, useScrollObserver, useHashChangeObserver } from '../utils/useDOMObserver.js';
+import { computed, onMounted, onUpdated, ref, watch, nextTick, toRaw } from 'vue';
 import ResourceNotFoundError from '../utils/ResourceNotFoundError.js';
 import { BookShelf, Book } from "@/utils/BookShelf.js"
 import { useRoute } from 'vue-router'
@@ -71,6 +71,7 @@ const props = defineProps({
 
 const options = ref(defaultReadOptions)
 
+const metadata = ref({});//书籍metadata
 //初始化：获取章节文件列表
 const isInited = ref(false)
 async function init() {
@@ -87,8 +88,9 @@ async function init() {
   // 书架实例
   const bookShelf = new BookShelf()
   const book = await bookShelf.getBookByHashCode(props.hashCode)
-  const metadata = await bookShelf.getBookMetadataByHashCode(props.hashCode)
-  options.value = metadata.options
+  const metadataValue = await bookShelf.getBookMetadataByHashCode(props.hashCode)
+  metadata.value = metadataValue
+  options.value = metadataValue.options
   // console.log("文件内容：",arrayBuffer)
   bookHash.value = props.hashCode
   // 解压
@@ -103,7 +105,11 @@ async function init() {
   let rootDir = metadataOpfDir.value;//获取目录文件的路径，如"OEBPS"
   // console.log("章节文件位置：", rootDir);
   //并且加载章节
+
+  //初始化阅读器样式
   viewerRef.value.style.transition = `all ${transitionDuration}ms ease`;
+  reloadFactReadingMode()
+
   console.log("开始加载所有章节内容");
   // const promises = []
   for (let i = 0; i < spineFiles.value.length; i++) {
@@ -117,10 +123,15 @@ async function init() {
       continue;
     }
     const chapter = await resolveXhtmlResource(await file.async("string"), filePath);
+    if (i == 0) {
+      //加载首页时就开始判断
+      await setIsLNovel(new DOMParser().parseFromString(chapter, "text/html"));
+    }
     const blob = new Blob([chapter], { type: chapterLoadType.value });//使用blob代替字符串，更优雅
     const blobUrl = URL.createObjectURL(blob);
     chapters.value.push(blobUrl)
   }
+
   console.log("所有章节加载完毕")
   isInited.value = true
 }
@@ -191,9 +202,33 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
     if ((isImgIllus(imgEl) && imgRate > 1)) {
       console.log("图片被标记为双页插画，应用双页尺寸优化");
       //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
+
+      if (isReLoad) {
+        console.log("重载模式，要去掉left")
+        imgEl.style.position = "static";
+        imgEl.style.left = "0"
+        imgEl.style.top = "0"
+        if (imgEl.tagName == "image") {
+          console.log("打算去掉svg标签的")
+          imgEl.parentElement.style.position = "static";
+          imgEl.parentElement.style.top = "0"
+          imgEl.parentElement.style.left = "0"
+        }
+      }
       setImgFullWidth(imgEl);
       imgEl.style.position = "relative";
       imgEl.style.top = `-${pagePadding.value}px`;
+      if (imgEl.tagName == "image") {
+        imgEl.parentElement.style.position = "relative";
+        imgEl.parentElement.style.top = `-${pagePadding.value}px`;
+      }
+
+      if (options.value.pageDirection == "rtl") {
+        imgEl.style.left = `-${width.value / 2}px`
+        if (imgEl.tagName == "image") {
+          imgEl.parentElement.style.left = `-${width.value / 2}px`
+        }
+      }
     }
     //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
     if (isImgIllus(imgEl)) {
@@ -260,6 +295,34 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
 }
 
+async function removeBetterLNovel(index, chapterDoc) {
+  //如果是重新加载章节，就先移除旧的占位标签
+  const oldPlaceholder = chapterDoc.querySelectorAll("div[img-placeholder]");
+  if (oldPlaceholder) {
+    for (let i = 0; i < oldPlaceholder.length; i++) {
+      oldPlaceholder[i].remove()
+    }
+  }
+
+  const imgs = chapterDoc.querySelectorAll("img,image")
+  let imgEl;
+  for (let i = 0; i < imgs.length; i++) {
+    imgEl = imgs[i]
+    imgEl.style.removeProperty("width")
+    imgEl.style.removeProperty("height")
+    imgEl.style.removeProperty("max-width")
+    imgEl.style.removeProperty("max-height")
+    imgEl.style.removeProperty("position")
+    imgEl.style.removeProperty("left")
+    imgEl.style.removeProperty("top")
+    if (imgEl.tagName == "image") {
+      imgEl.style.removeProperty("position")
+      imgEl.style.removeProperty("left")
+      imgEl.style.removeProperty("top")
+    }
+  }
+}
+
 //该函数将css文本加上作用域前缀
 function scopeCss(cssText, prefix) {
   // 1) 忽略不应当加作用域的 at-rules
@@ -316,15 +379,138 @@ async function loadSpine(zip) {
   // 获取 manifest 对应 href
   const manifest = {};
   opfDoc.querySelectorAll("manifest item").forEach(item => {
-    manifest[item.getAttribute("id")] = item.getAttribute("href");
+    manifest[item.getAttribute("id")] = {
+      href: item.getAttribute("href"),
+      mediaType: item.getAttribute("media-type"),
+      properties: item.getAttribute("properties")
+    };
   });
 
-  // spine 对应的实际文件列表
-  const spineFiles = spine.map(idref => manifest[idref]);
+  const spineFiles = spine.map(idref => manifest[idref]?.href);
   console.log(spineFiles); // ["Text/chapter1.xhtml", "Text/chapter2.xhtml"]。解析成功
 
-  return [spineFiles, rootfilePath];
+  const toc = await buildToc(zip, opfDoc, manifest, rootfilePath);
+  content.value = toc
+  return [spineFiles, rootfilePath, toc];
 }
+
+async function buildToc(zip, opfDoc, manifest, rootfilePath) {
+
+  const parser = new DOMParser();
+  const opfDir = rootfilePath.substring(0, rootfilePath.lastIndexOf("/") + 1);
+
+  // EPUB3 检测
+  const navItemEntry = Object.entries(manifest).find(([id, item]) => {
+    return item.properties && item.properties.includes("nav");
+  });
+
+  if (navItemEntry) {
+    const [navId, navItem] = navItemEntry;
+
+    const navPath = opfDir + navItem.href;
+
+    const fileObj = zip.file(navPath);
+    if (!fileObj) {
+      console.warn("⚠ nav 文件不存在于 zip 中:", navPath);
+      return [];
+    }
+
+    const navXml = await fileObj.async("string");
+
+    const navDoc = parser.parseFromString(navXml, "application/xhtml+xml");
+
+    const allNavs = navDoc.querySelectorAll("nav");
+
+    const tocNav = [...allNavs].find(nav =>
+      nav.getAttribute("epub:type") === "toc" ||
+      nav.getAttribute("type") === "toc"
+    );
+
+    if (!tocNav) {
+      console.warn("⚠ 没找到 epub:type='toc'");
+      return [];
+    }
+
+
+    const parseOl = (ol) => {
+      return [...ol.children]
+        .filter(li => li.tagName.toLowerCase() === "li")
+        .map(li => {
+          const a = li.querySelector(":scope > a");
+          const subOl = li.querySelector(":scope > ol");
+
+          return {
+            label: a?.textContent?.trim() || "",
+            href: a?.getAttribute("href") || "",
+            children: subOl ? parseOl(subOl) : []
+          };
+        });
+    };
+
+    const rootOl = tocNav.querySelector("ol");
+
+    const result = rootOl ? parseOl(rootOl) : [];
+    return result;
+  }
+
+  console.log("未检测到 EPUB3 nav，尝试 EPUB2");
+
+  //  EPUB2 检测
+  const ncxEntry = Object.entries(manifest).find(([id, item]) => {
+    return item.mediaType === "application/x-dtbncx+xml";
+  });
+
+  if (ncxEntry) {
+    const [ncxId, ncxItem] = ncxEntry;
+    const ncxPath = opfDir + ncxItem.href;
+    const fileObj = zip.file(ncxPath);
+    if (!fileObj) {
+      console.warn("⚠ ncx 文件不存在于 zip 中:", ncxPath);
+      return [];
+    }
+    const ncxXml = await fileObj.async("string");
+    console.log("ncx 文件长度:", ncxXml.length);
+    const ncxDoc = parser.parseFromString(ncxXml, "application/xml");
+    const navMap = ncxDoc.getElementsByTagName("navMap")[0];
+    if (!navMap) {
+      console.warn("⚠ navMap 不存在");
+      return [];
+    }
+    const parseNavPoint = (navPoint) => {
+      const labelEl = navPoint.getElementsByTagName("text")[0];
+      const contentEl = navPoint.getElementsByTagName("content")[0];
+      const label = labelEl?.textContent?.trim() || "";
+      const href = contentEl?.getAttribute("src") || "";
+      const childNavPoints = [...navPoint.children]
+        .filter(el => el.tagName === "navPoint")
+        .map(parseNavPoint);
+      return {
+        label,
+        href,
+        children: childNavPoints
+      };
+    };
+
+    const topNavPoints = [...navMap.children]
+      .filter(el => el.tagName === "navPoint");
+    const result = topNavPoints.map(parseNavPoint);
+    return result;
+  }
+
+  console.warn("⚠ 未找到 nav 或 ncx，进入 fallback");
+
+  const fallback = Object.entries(manifest)
+    .filter(([id, item]) => item.mediaType === "application/xhtml+xml")
+    .map(([id, item]) => ({
+      label: item.href,
+      href: item.href,
+      children: []
+    }));
+
+  return fallback;
+}
+
+
 
 function relativePathToAbsolutePath(curFilePath, src) {
   // console.log("原始资源路径：", src);
@@ -375,9 +561,11 @@ const readProcess = ref(0);
 const totalPages = ref(0);
 const currentPage = defineModel("currentPage", { type: [Number, String], default: 2 });
 
+const isScrolling = ref(false)
 
 const iframeWidthList = ref([])
-useScrollObserver(viewerRef, updatePagesParams);
+const iframeHeightList = ref([])
+useScrollObserver(viewerRef, updatePagesParams, { isScrolling, });
 
 const emit = defineEmits(["update:totalPages"])
 
@@ -385,38 +573,72 @@ const emit = defineEmits(["update:totalPages"])
 function updatePagesParams(scrollInfo) {
   console.log("滚动信息：", {
     scrollLeft: scrollInfo.scrollLeft,
+    scrollTop: scrollInfo.scrollTop,
     scrollWidth: scrollInfo.scrollWidth,
+    scrollHeight: scrollInfo.scrollHeight,
     viewerWidth: scrollInfo.clientWidth,
   })
-  totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
-  emit("update:totalPages", totalPages.value)
-  currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2));
-  readProcess.value = getCurProcess(scrollInfo);
+  if (factReadingMode.value != READING_MODE_SCROLL) {
+    totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
+    emit("update:totalPages", totalPages.value)
+    if (options.value.pageDirection == "rtl") {
+      //右开本需要反过来计算页码
+      currentPage.value = Math.ceil((-scrollInfo.scrollLeft + 1) / (width.value / 2));
+      // console.log("右开本，scrollLeft:", scrollInfo.scrollLeft, "计算得到页码：", currentPage.value);
+    } else {
+      currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2));
+    }
+    readProcess.value = getCurProcess(scrollInfo);
+  } else {
+    totalPages.value = Math.ceil(scrollInfo.scrollHeight / height.value);
+    emit("update:totalPages", totalPages.value)
+    currentPage.value = Math.ceil((scrollInfo.scrollTop + 1) / height.value);
+    readProcess.value = getCurProcess(scrollInfo);
+  }
+
   console.log(`当前页码：${currentPage.value} / ${totalPages.value}`);
 }
 
 //更新页码=>滚动
-watch(currentPage, (newPage) => {
-  console.log("页码变化，新的页码：", newPage);
-  if (newPage < 1) {
+watch(currentPage, () => {
+  console.log("页码变化，新的页码：", currentPage.value);
+  if (currentPage.value < 1) {
     currentPage.value = 1;
-  } else if (newPage > totalPages.value) {
+  } else if (currentPage.value > totalPages.value) {
     console.log("页码超过总页数，调整到最后一页");
     currentPage.value = totalPages.value;
+  }
+  if (isScrolling.value) {
+    return
   }
   skipToPage(currentPage.value);
 })
 
 function getCurProcess(scrollInfo) {
-  let totalWidth = 0
-  let i = 0
-  while (totalWidth < scrollInfo.scrollLeft + (width.value / 2) - 5 && i < iframeWidthList.value.length) {
-    totalWidth += iframeWidthList.value[i]
-    i++//当前章节索引
+  let chapterIndex = 0;
+  let innerProcess = 0;
+  if (factReadingMode.value != READING_MODE_SCROLL) {
+    let totalWidth = 0
+    let i = 0
+    while (totalWidth < Math.abs(scrollInfo.scrollLeft) + (width.value / 2) - 5 && i < iframeWidthList.value.length) {
+      totalWidth += iframeWidthList.value[i]
+      i++//当前章节索引
+    }
+    chapterIndex = i - 1
+    innerProcess = (iframeWidthList.value[chapterIndex] - (totalWidth - Math.abs(scrollInfo.scrollLeft))) / iframeWidthList.value[chapterIndex]
+  } else {
+    let totalHeight = 0
+    let i = 0
+    // console.log("scrollTop:", scrollInfo.scrollTop)
+    while (totalHeight < scrollInfo.scrollTop + height.value - 5 && i < iframeHeightList.value.length) {
+      totalHeight += iframeHeightList.value[i]
+      i++//当前章节索引
+    }
+    chapterIndex = i - 1
+    innerProcess = (iframeHeightList.value[chapterIndex] - (totalHeight - scrollInfo.scrollTop)) / iframeHeightList.value[chapterIndex]
   }
-  const chapterIndex = i - 1
-  // console.log("当前totalWidth:", totalWidth, "当前scrollLeft:", scrollInfo.scrollLeft)
-  const innerProcess = (iframeWidthList.value[chapterIndex] - (totalWidth - scrollInfo.scrollLeft)) / iframeWidthList.value[chapterIndex]
+
+
   return { chapterIndex: chapterIndex, innerProcess: innerProcess }
 }
 
@@ -425,40 +647,113 @@ function loadPagesParams() {
   updatePagesParams(viewer)
 }
 
+const curChapterIndex = defineModel("curChapterIndex", {
+  type: [Number, String], default: 0
+});
+
 //进度记录器
-watch(readProcess, (newVal) => {
+watch(readProcess, async (newVal) => {
   if (!isRecovered.value) return;//未恢复进度前不记录
-  localStorage.setItem(bookHash.value, JSON.stringify(newVal));
+  curChapterIndex.value = newVal.chapterIndex;
+  await new BookShelf().saveBookReadProcess(bookHash.value, toRaw(newVal));
+  metadata.value.process = toRaw(newVal);//更新metadata中的进度数据，方便后续恢复进度时读取
 });
 
 const isRecovered = ref(false);
+function recoverProcessOrRediact() {
+  if (window.location.hash) {
+    isRecovered.value = true
+    const targetId = window.location.hash.slice(1);//去掉#号
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'instant', block: 'start', inline: "start" });
+      window.location.hash = "";//清除hash，避免后续hash变化触发
+    } else {
+      recoverProcess()
+      console.warn("未找到对应的锚点元素：", targetId, "已自动恢复到上次阅读进度");
+    }
+  } else {
+    recoverProcess()
+  }
+}
+
+function setReadingDirection() {
+  viewerRef.value.dir = "normal";//先设置成默认ltr，避免之前的rtl设置影响到后续的scrollLeft计算
+  if (options.value.pageDirection == "rtl") {
+    viewerRef.value.dir = "rtl"
+  }
+}
+
+useHashChangeObserver((hashValue) => {
+  console.log("hash变化了，新的hash：", hashValue);
+  if (!isRecovered.value || !hashValue || hashValue == "") {
+    //如果还没恢复进度，恢复后自由逻辑跳转
+    return
+  } else {
+    const targetId = hashValue.slice(1);//去掉#号
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      /*
+      block: 'start'：将元素顶部与滚动容器顶部对齐。
+      inline: "start"：将元素的左边缘与滚动容器的左边缘对齐（对于从左到右的文本）。如果是从右到左的文本，则将元素的右边缘与滚动容器的右边缘对齐。
+      */
+      targetEl.scrollIntoView({ behavior: 'instant', block: 'start', inline: "start" });
+      window.location.hash = "";//清除hash，避免后续hash变化触发
+    } else {
+      console.warn("未找到对应的锚点元素：", targetId);
+    }
+  }
+})
+
 function recoverProcess() {
-  const savedProcess = JSON.parse(localStorage.getItem(bookHash.value));
+  const savedProcess = metadata.value.process;
   if (savedProcess) {
     console.log("阅读进度：", savedProcess);
     const viewer = viewerRef.value;
-    let scrollLeft = 0;
-    for (let i = 0; i < savedProcess.chapterIndex; i++) {
-      scrollLeft += iframeWidthList.value[i]
+    if (factReadingMode.value != READING_MODE_SCROLL) {
+      let scrollLeft = 0;
+      for (let i = 0; i < savedProcess.chapterIndex; i++) {
+        scrollLeft += iframeWidthList.value[i]
+      }
+      scrollLeft += savedProcess.innerProcess * iframeWidthList.value[savedProcess.chapterIndex];
+      if (options.value.pageDirection == "rtl") {
+        scrollLeft = -scrollLeft;//右开本需要反过来计算scrollLeft
+      }
+      viewer.scrollLeft = roundToNearestMultiple(scrollLeft, width.value / 2);
+    } else {
+      let scrollTop = 0;
+      for (let i = 0; i < savedProcess.chapterIndex; i++) {
+        scrollTop += iframeHeightList.value[i]
+      }
+      scrollTop += savedProcess.innerProcess * iframeHeightList.value[savedProcess.chapterIndex];
+      viewer.scrollTop = roundToNearestMultiple(scrollTop, height.value);
     }
-    scrollLeft += savedProcess.innerProcess * iframeWidthList.value[savedProcess.chapterIndex];
-    viewer.scrollLeft = roundToNearestMultiple(scrollLeft, width.value / 2);
+
   }
-  // setTimeout(()=>{})
   isRecovered.value = true;
 }
 
 function skipToPage(pageNum) {
   const viewer = viewerRef.value;
-  let pageWidth = viewer.clientWidth;
-  if(factReadingMode.value == READING_MODE_DOUBLE){
-    pageWidth /= 2;
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    viewer.scrollTop = (pageNum - 1) * height.value;
+  } else {
+    let pageWidth = viewer.clientWidth;
+    if (factReadingMode.value == READING_MODE_DOUBLE) {
+      pageWidth /= 2;
+    }
+    if (options.value.pageDirection == "rtl") {
+      //如果是rtl模式，页码是从右往左数的，所以跳转时要从右边计算scrollLeft
+      console.log("RTL模式跳转，计算scrollLeft：", -(pageNum - 1) * pageWidth);
+      viewer.scrollLeft = -(pageNum - 1) * pageWidth;
+    } else {
+      viewer.scrollLeft = (pageNum - 1) * pageWidth;
+    }
   }
-  viewer.scrollLeft = (pageNum - 1) * pageWidth;
 }
 
 function nextPage() {
-  if (currentPage.value + 1 >= totalPages.value) {
+  if (currentPage.value >= totalPages.value) {
     console.log("已经是最后一页了");
     return
   }
@@ -494,12 +789,21 @@ useResizeObserver(wapperRef, (rect) => {
   }
   const styleEl = document.createElement("style");
   styleEl.setAttribute("dynamic-iframe-style", "");
-  styleEl.textContent = `
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    styleEl.textContent = `
+        iframe {
+          display: block;
+          min-width: ${width.value / 2}px;
+        }
+      `
+  } else {
+    styleEl.textContent = `
         iframe {
           height: ${height.value}px;
           min-width: ${width.value / 2}px;
         }
       `
+  }
   document.head.appendChild(styleEl);
 
   if (width.value == oldWidth && height.value == oldHeight) {
@@ -530,17 +834,27 @@ function autoBestFit(rect) {
       height.value = Math.round(rect.height);
       width.value = Math.round(rect.height * factBookRate);
     }
-
   } else {
-    width.value = Math.round(rect.width);
-    height.value = Math.round(rect.height);
+    if (factReadingMode.value == READING_MODE_SCROLL) {
+      if (viewportRate < factBookRate) {
+        //视口更高，按宽度适应
+        width.value = Math.round(rect.width);
+        height.value = Math.round(rect.width / factBookRate);
+      } else {
+        //视口更宽，按高度适应
+        height.value = Math.round(rect.height);
+        width.value = Math.round(rect.height * factBookRate);
+      }
+    } else {
+      width.value = Math.round(rect.width);
+      height.value = Math.round(rect.height);
+    }
   }
+  console.log("自动最佳适应计算结果，阅读器尺寸：", { width: width.value, height: height.value });
 
   if (factBookRate < 1) {
     width.value *= 2;
   }
-  /* viewerRef.value.style.width = `${width.value}px`;
-  viewerRef.value.style.height = `${height.value}px`; */
 }
 
 const imgIllusMap = ref(new Map());//插画图片映射表，键为imgEl，值为true/false
@@ -578,34 +892,83 @@ function setViewerSize(rect = wapperRef.value.getBoundingClientRect()) {
     autoBestFit(rect);
   } else {
     console.log("未启用自动最佳适应，使用包裹容器尺寸作为阅读器尺寸:", rect);
-    if (factReadingMode.value == READING_MODE_DOUBLE) {
-      width.value = Math.round(rect.width);
-    } else if (factReadingMode.value == READING_MODE_SINGLE) {
-      width.value = Math.round(rect.width * 2);
-    }
+    width.value = Math.round(rect.width);
     height.value = Math.round(rect.height);
+    const factBookRate = factReadingMode.value == READING_MODE_DOUBLE ? bookRate.value : bookRate.value / 2;
+    if (factBookRate < 1) {
+      width.value *= 2;
+    }
   }
+
   if (factReadingMode.value == READING_MODE_DOUBLE) {
     viewerRef.value.style.width = `${width.value}px`;
-  } else if (factReadingMode.value == READING_MODE_SINGLE) {
+  } else {
     viewerRef.value.style.width = `${width.value / 2}px`;
+  } /* else if (factReadingMode.value == READING_MODE_SCROLL) {
+    viewerRef.value.style.width = `${width.value / 2}px`;
+    setTimeout(() => {
+      viewerRef.value.style.width = "auto";
+    }, transitionDuration+1000);
+  } */
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    viewerRef.value.style.height = rect.height + "px";
+  } else {
+    viewerRef.value.style.height = `${height.value}px`;
   }
-  viewerRef.value.style.height = `${height.value}px`;
 }
 
 const factReadingMode = ref(READING_MODE_DOUBLE);//实际使用的阅读模式，可能会根据自动适应结果调整
 
 const loadedChaptersCount = ref(0);//已加载章节计数
 
-async function onIframeLoad(index, event, isReLoad = false) {
+async function setIsLNovel(coverDoc) {
+  if (!coverDoc) {
+    coverDoc = chaptersRef.value[0].contentDocument;
+  }
+  const imgElements = coverDoc.querySelectorAll("img,image");
+  if (imgElements.length == 1) {
+    // 标记为轻小说
+    isLNovel.value = true;
+    console.log("检测到轻小说格式，启用轻小说优化器");
+    //获取图片分辨率，计算书籍开版比例
+    const imgEl = imgElements[0];
+    const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
+    await getImageResolution(src).then(resolution => {
+      // console.log("封面图片分辨率：", resolution);
+      bookRate.value = ((resolution.width / resolution.height) * 2);
+      console.log("计算书籍开版比例：", bookRate.value);
+    }).catch(err => {
+      console.warn("获取封面图片分辨率失败，轻小说模式已禁用");
+      console.error(err.message);
+      isLNovel.value = false;
+    });
 
+    if (options.value.lNovelEnabled == 0 || options.value.readingMode == READING_MODE_SCROLL) {
+      console.log("禁用轻小说优化器：轻小说阅读器已强制禁用或使用滚动模式");
+      isLNovel.value = false;
+    }
+  } else if (options.value.lNovelEnabled == 2) {
+    //如果是强制轻小说模式，就算不满足轻小说格式也启用轻小说优化器
+    isLNovel.value = true;
+    console.warn("强制启用轻小说优化器：无法判定轻小说，强制启用可能导致渲染异常");
+  }
+}
+
+//目录
+const content = defineModel("content", {
+  type: Array,
+  default: () => []
+});//目录数据，格式[{title:"章节1",index:0},]
+async function onIframeLoad(index, event, isReLoad = false) {
   if (index != 0 && (width.value == 0 || height.value == 0)) {
     console.warn(`加载章节${index}时阅读器尺寸未确定，将延后加载`);
     setTimeout(() => {
-      onIframeLoad(index, event)
+      onIframeLoad(index, event, isReLoad)
     }, 500);
     return
   }
+
+
   console.log("设置章节容器样式：", index);
   //设置iframe样式，主要是阅读器尺寸。
   const iframe = chaptersRef.value[index]
@@ -614,48 +977,40 @@ async function onIframeLoad(index, event, isReLoad = false) {
   const doc = chapterEl.contentDocument
   iframe.style.transition = `all ${transitionDuration}ms ease`;
 
-  //检测是否为轻小说格式
   if (index === 0) {    //获取封面页的，看是不是实际上只有一张图片
-    const imgElements = doc.querySelectorAll("img,image");
-    if (imgElements.length == 1 && options.value.lNovelEnabled > 0) {
-      // 标记为轻小说
-      isLNovel.value = true;
-      console.log("检测到轻小说格式，启用轻小说优化器");
-      //获取图片分辨率，计算书籍开版比例
-      const imgEl = imgElements[0];
-      const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href");
-      await getImageResolution(src).then(resolution => {
-        // console.log("封面图片分辨率：", resolution);
-        bookRate.value = ((resolution.width / resolution.height) * 2);
-        console.log("计算书籍开版比例：", bookRate.value);
-      }).catch(err => {
-        console.warn("获取封面图片分辨率失败，轻小说模式已禁用");
-        console.error(err.message);
-        isLNovel.value = false;
-      });
-    } else if (options.value.lNovelEnabled == 2) {
-      //如果是强制轻小说模式，就算不满足轻小说格式也启用轻小说优化器
-      isLNovel.value = true;
-      console.log("强制启用轻小说优化器");
-    }
+    // await setIsLNovel();
+    console.log("932行：isLNovel结果：", isLNovel.value)
+
     //首次设置阅读器尺寸
     setViewerSize();
+    //首次设置开本方向
+    setReadingDirection();
 
     iframe.style.height = `${height.value}px`;
     iframe.style.minWidth = `${width.value / 2}px`;
     iframe.style.overflow = "hidden";
+
 
     if (document.querySelector("style[dynamic-iframe-style]")) {
       document.querySelector("style[dynamic-iframe-style]").remove();
     }
     const dynamicIframeStyleEl = document.createElement("style");
     dynamicIframeStyleEl.setAttribute("dynamic-iframe-style", "");
-    dynamicIframeStyleEl.textContent = `
+    if (factReadingMode.value == READING_MODE_SCROLL) {
+      dynamicIframeStyleEl.textContent = `
+        iframe {
+          display: block;
+          min-width: ${width.value / 2}px;
+        }
+      `
+    } else {
+      dynamicIframeStyleEl.textContent = `
         iframe {
           height: ${height.value}px;
           min-width: ${width.value / 2}px;
         }
       `
+    }
     document.head.appendChild(dynamicIframeStyleEl);
 
   }
@@ -663,14 +1018,32 @@ async function onIframeLoad(index, event, isReLoad = false) {
   //更正成双开大小的style
   if (isReLoad) {
     //如果是重新加载章节，就先移除旧的style
-    const oldStyleEl = doc.head.querySelector("style[double-page-style]");
+    const oldStyleEl = doc.head.querySelector("style[page-style]");
     if (oldStyleEl) {
       oldStyleEl.remove();
     }
   }
-  const doublePageStyleEl = doc.createElement("style");
-  doublePageStyleEl.setAttribute("double-page-style", "");
-  doublePageStyleEl.textContent = `
+
+  const pageStyleEl = doc.createElement("style");
+  pageStyleEl.setAttribute("page-style", "");
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    pageStyleEl.textContent = `
+      body {
+        margin:0;
+        padding:0;
+        box-sizing: border-box;
+        width: ${width.value / 2}px;
+        overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
+      }
+      svg,img,image{
+        max-width: ${width.value / 2}px;
+        max-height: ${height.value}px;
+        object-fit: contain;
+        transition:all ${transitionDuration}ms ease;
+      }
+    `;
+  } else {
+    pageStyleEl.textContent = `
       body {
         margin:0;
         padding:0;
@@ -696,7 +1069,9 @@ async function onIframeLoad(index, event, isReLoad = false) {
         padding-right: ${pagePadding.value}px;
       } */
     `;
-  doc.head.append(doublePageStyleEl);
+  }
+
+  doc.head.append(pageStyleEl);
   //这样追加的style在原样式后，会覆盖原有样式
 
   /*
@@ -705,22 +1080,24 @@ async function onIframeLoad(index, event, isReLoad = false) {
    */
 
   //处理插画图片，使其顶格显示
-  doc.querySelectorAll("img").forEach(imgEl => {
-    if (isImgIllus(imgEl)) {
-
-      if (imgEl.parentElement) {
-        const parent = imgEl.parentElement;
-        if (parent.tagName.toLowerCase() == "a") {
-          //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
-          parent.style.top = `-${pagePadding.value}px`;
-          parent.style.position = "relative";
-          return
+  if (factReadingMode.value != READING_MODE_SCROLL) {
+    //滚动模式下不处理图片顶格，因为滚动模式下图片本来就不受分页限制了
+    doc.querySelectorAll("img").forEach(imgEl => {
+      if (isImgIllus(imgEl)) {
+        if (imgEl.parentElement) {
+          const parent = imgEl.parentElement;
+          if (parent.tagName.toLowerCase() == "a") {
+            //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
+            parent.style.top = `-${pagePadding.value}px`;
+            parent.style.position = "relative";
+            return
+          }
         }
+        imgEl.style.position = "relative";
+        imgEl.style.top = `-${pagePadding.value}px`;
       }
-      imgEl.style.position = "relative";
-      imgEl.style.top = `-${pagePadding.value}px`;
-    }
-  });
+    });
+  }
 
   //处理一下svg图片的比例缩放问题
   doc.querySelectorAll("svg").forEach(svgEl => {
@@ -728,12 +1105,16 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (svgEl.getAttribute("width") == "100%" || svgEl.style.width == "100%") {
       svgEl.style.width = `${width.value / 2}px`
       svgEl.style.position = "relative"
-      svgEl.style.top = `-${pagePadding.value}px`
+      if (factReadingMode.value != READING_MODE_SCROLL) {
+        svgEl.style.top = `-${pagePadding.value}px`
+      }
     }
     if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
       svgEl.style.height = `${height.value}px`
       svgEl.style.position = "relative"
-      svgEl.style.top = `-${pagePadding.value}px`
+      if (factReadingMode.value != READING_MODE_SCROLL) {
+        svgEl.style.top = `-${pagePadding.value}px`
+      }
     }
     svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
   });
@@ -745,7 +1126,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
       el.style.margin = "0";
     }
   });
-
 
   //处理文本标签的默认内边距
   if (isReLoad) {
@@ -787,10 +1167,39 @@ async function onIframeLoad(index, event, isReLoad = false) {
   doc.body.style.outline = "none";
   doc.body.setAttribute("tabindex", "-1");//使body可聚焦，防止选中文本后无法取消选中
 
+  //设定开本方向
+  if (isReLoad) {
+    //如果是重新加载章节，就先移除旧的rtl-style
+    const oldRtlStyleEl = doc.head.querySelector("style[rtl-style]");
+    if (oldRtlStyleEl) {
+      oldRtlStyleEl.remove();
+    }
+    doc.documentElement.dir = "normal";
+  }
+  if (options.value.pageDirection == "rtl") {
+    console.log("设置开本方向为rtl");
+    doc.documentElement.dir = "rtl";
+    const rtlStyle = doc.createElement("style");
+    rtlStyle.setAttribute("rtl-style", "");
+    rtlStyle.textContent = `
+      html[dir=rtl] *:not(html):not(body):not([dir]) {
+        direction: ltr;
+      }
+    `;//仅仅使开版方向是rtl，其他元素仍然保持ltr，防止文本方向也变成rtl导致的排版混乱
+    if (doc.head.firstChild) {
+      doc.head.insertBefore(rtlStyle, doc.head.firstChild);
+    } else {
+      doc.head.appendChild(rtlStyle);
+    }
+    //最小干预
+  }
+
   //特殊处理轻小说
   if (isLNovel.value) {
     console.log(`对${index}章节应用轻小说优化器`);
     await betterLNovel(index, iframe, doc, isReLoad);
+  } else {
+    await removeBetterLNovel(index, doc)
   }
 
   //防止p标签超过宽度
@@ -805,20 +1214,39 @@ async function onIframeLoad(index, event, isReLoad = false) {
   `;
   doc.head.append(strictPEl);
 
-  /* const pElements = doc.querySelectorAll("p");
-  pElements.forEach(pEl => {
-    pEl.style.maxWidth = `${width.value / 2}px`;
-  }); */
-
   //防止横向滚动条出现
   if (!iframeScrollEnabled.value) {
     if (isReLoad) {
       //chapterEL就是iframe
       chapterEl.style.width = "auto";//先清空旧的宽度设置
     }
+    // await new Promise(resolve => {
+    // setTimeout(() => {
     const widthValue = roundToNearestMultiple(doc.body.scrollWidth, width.value / 2)
-    chapterEl.style.width = widthValue + "px";
-    iframeWidthList.value[index] = (widthValue)
+    if (factReadingMode.value == READING_MODE_SCROLL) {
+      chapterEl.style.width = width.value / 2 + "px";
+    } else {
+      chapterEl.style.width = widthValue + "px";
+    }
+    chapterEl.style.height = `${height.value}px`;
+    iframeWidthList.value[index] = widthValue;
+    loadPagesParams();
+    // resolve()
+    // }, transitionDuration + 100)
+    // })
+    //注释部分充分等待动画后再设置宽度，防止动画导致的宽度计算错误，但是速度太慢了
+  }
+
+  //滚动模式下让所有iframe的高度都适应内容高度，防止出现竖向滚动条
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    setTimeout(() => {
+      chapterEl.style.height = "auto";//先清空旧的高度设置
+      const heightValue = doc.body.scrollHeight;
+      chapterEl.style.height = heightValue + "px";
+      chapterEl.style.width = `${width.value / 2}px`;
+      iframeHeightList.value[index] = heightValue
+    }, transitionDuration + 100);
+    //这里的目的是防止动画导致的高度计算错误，等动画结束后再设置成内容高度
   }
 
   //处理超链接
@@ -840,7 +1268,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
       const target = document.getElementById(id);
       if (target) {
         //立即跳转
-        target.scrollIntoView({ behavior: 'instant', block: 'start' });
+        target.scrollIntoView({ behavior: 'instant', block: 'start', inline: "start" });
       } else {
         console.warn("未找到对应的锚点元素：", id);
       }
@@ -848,10 +1276,12 @@ async function onIframeLoad(index, event, isReLoad = false) {
   }
 
   loadPagesParams();//这个函数叫load最好听，因为它是加载章节时调用的，
+  chapterPagesList.value[index] = calculateChapterPages(index);
   // 每加载一个章节就调用一次，更新总页数，可以在视图上让用户看出来在加载进度
 
   //尝试处理注释（兼容duokan注释）（重新加载时候不需要重复处理注释）
   if (isReLoad) return;
+  //===============注意：此行往下重载时不执行================
   //获取epub:type="noteref"的元素列表
   const noteRefElements = doc.querySelectorAll("a[epub\\:type='noteref'],a.duokan-footnote");
   if (noteRefElements.length > 0) {
@@ -923,19 +1353,56 @@ async function onIframeLoad(index, event, isReLoad = false) {
     if (e.key === "ArrowLeft") {
       //默认事件是滚动页面，这里要阻止
       e.preventDefault();
-      prevPage();
+      if (options.value.pageDirection == "rtl") {
+        nextPage();
+      } else {
+        prevPage();
+      }
     }
     if (e.key === "ArrowRight") {
       e.preventDefault();
-      nextPage();
+      if (options.value.pageDirection == "rtl") {
+        prevPage();
+      } else {
+        nextPage();
+      }
     }
   })
 
   loadedChaptersCount.value++;
   if (loadedChaptersCount.value === spineFiles.value.length) {
     console.log("章节视图全部初始化加载完成！");
-    recoverProcess();//恢复阅读进度
+
+    recoverProcessOrRediact();//恢复阅读进度
   }
+}
+
+const chapterPagesList = ref([]);//章节页数列表，索引对应章节索引，值为该章节的页数
+const chapterPageStartList = defineModel("chapterPageStartList", {
+  type: Array,
+  default: () => []
+})//章节起始页列表，索引对应章节索引，值为该章节的起始页码
+
+watch(chapterPagesList, () => {
+  console.log("章节页数列表更新：", chapterPagesList.value);
+  let pageCount = 1;
+  for (let i = 0; i < chapterPagesList.value.length; i++) {
+    chapterPageStartList.value[i] = pageCount;
+    pageCount += chapterPagesList.value[i];
+  }
+}, { deep: true }
+)
+
+const calculateChapterPages = (chapterIndex) => {
+  const chapterWidth = iframeWidthList.value[chapterIndex] || width.value / 2;
+  const chapterHeight = iframeHeightList.value[chapterIndex] || height.value;
+  let pagesInChapter = 1;
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    pagesInChapter = Math.ceil(chapterHeight / height.value);
+  } else {
+    pagesInChapter = Math.ceil(chapterWidth / (width.value / 2));
+  }
+  return pagesInChapter;
 }
 
 const isClickToTurnPageEnabled = computed(() => options.value.clickToFlipEnabled);//是否启用点击翻页功能
@@ -954,8 +1421,6 @@ async function loadViewer() {
     console.log("章节尚未全部加载完毕，等待中...");
     return;//所有章节iframe未加载完毕就不执行
   }
-  //设置章节容器双页显示
-  // console.log("chapterRef：", chaptersRef.value);
   const loadTasks = [];
   for (let i = 0; i < chaptersRef.value.length; i++) {
     console.log(`加载第${i}章节视图`);
@@ -965,12 +1430,6 @@ async function loadViewer() {
   console.log("***加载结束***")
   // isLoading.value = false;
 }
-
-onUpdated(() => {
-  // 只在必要时重新加载阅读器视图
-  // console.log("视图更新完毕，重新加载阅读器视图");
-  // loadViewer()
-});
 
 //xhtml资源解析函数（最先执行的函数）
 async function resolveXhtmlResource(xhtml, curFilePath) {
@@ -1211,12 +1670,14 @@ function closeAllDialog() {
   options.value.lNovelEnabled
 ]) */
 
-watch(() => bus.curReadOptions, (newOptions) => {
+watch(() => bus.curReadOptions, async (newOptions) => {
   options.value = newOptions;
   console.log("阅读器选项已更新，开始重新加载")
+  //轻小说模式重新加载
+  await setIsLNovel()
+  console.log("1626行（重新加载阅读器选项）：isLNovel结果：", isLNovel.value)
   //尺寸重加载逻辑
-  setViewerSize();
-  reloadFactReadingMode();
+  setViewerSize();//重写计算factReadingMode和viewerRef的尺寸
   viewerRef.value.style.backgroundColor = options.value.backgroundColor;
   reLoadViewer();
 },
@@ -1225,7 +1686,6 @@ watch(() => bus.curReadOptions, (newOptions) => {
 
 function reloadFactReadingMode() {
   if (options.value.readingMode == READING_MODE_AUTO) {
-    console.log("自动阅读模式，根据容器宽度调整阅读模式:", wapperRef.value.getBoundingClientRect().width);
     const viewportRate = wapperRef.value.getBoundingClientRect().width / wapperRef.value.getBoundingClientRect().height;
     if (viewportRate > 1) {
       factReadingMode.value = READING_MODE_DOUBLE
@@ -1235,16 +1695,28 @@ function reloadFactReadingMode() {
   } else {
     factReadingMode.value = options.value.readingMode
   }
+  if (factReadingMode.value == READING_MODE_SCROLL) {
+    viewerRef.value.style.overflowY = "scroll";
+    viewerRef.value.style.overflowX = "hidden";
+    // console.log(viewerRef.value.style);
+    viewerRef.value.scrollLeft = 0;//切换到滚动模式后默认滚动到顶部，防止之前的双页模式滚动位置过大导致看不到内容
+  } else {
+    viewerRef.value.style.overflow = "hidden";
+    viewerRef.value.scrollTop = 0;
+  }
+  console.log("实际使用的阅读模式：", factReadingMode.value);
 }
 
 function reLoadViewer() {
   isRecovered.value = false
+  setReadingDirection()
   loadViewer().then(() => {
     console.log("重新加载完成，恢复阅读进度")
     //重载完毕不等于DOM更新完毕，所以等DOM更新完毕再恢复阅读进度
     setTimeout(() => {
-      recoverProcess()
-    }, transitionDuration);//等过渡动画结束后再恢复阅读进度，防止过渡动画被跳转打断
+      updatePagesParams(viewerRef.value);
+      recoverProcessOrRediact()
+    }, transitionDuration + 100);//等过渡动画结束后再恢复阅读进度，防止过渡动画被跳转打断
     //其实主要是CSS有一个0.3s的过渡动画，等动画结束了再恢复阅读进度，这样才比较可靠
   });
 }
@@ -1256,7 +1728,6 @@ const iframeScrollEnabled = computed(() => {
 
 </script>
 <template>
-
   <div ref="wapperRef" class="fitWapper">
     <template v-for="(noteCard, index) in noteCards" :key="index">
       <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
@@ -1265,6 +1736,7 @@ const iframeScrollEnabled = computed(() => {
       </NoteCard>
     </template>
     <div ref="viewerRef" class="viewer">
+      <!-- <h1>{{ metadata.title }}</h1> -->
       <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
         :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
     </div>
@@ -1282,7 +1754,7 @@ iframe {
 }
 
 .buttonArea {
-  position: absolute;
+  position: fixed;
   left: 0;
   bottom: 0;
   display: flex;
@@ -1310,11 +1782,24 @@ iframe {
   //核心默认使用视口尺寸，该组件尺寸可直接被父组件调整覆盖样式
 
   .viewer {
+    position: relative;
     margin: 0 auto;
     white-space: nowrap; //防止章节div换行
-    overflow: hidden;
+    // scrollbar-gutter: stable;
+    //该属性可以保证为滚动条预留空间，防止滚动条出现时内容宽度变化导致的闪烁，但目前只有chrome支持，等其他浏览器支持后可以考虑启用
+    //由于本项目高度依赖自己计算的width，该属性很容易引起冲突，导致翻页无法正常进行
+    // overflow: hidden;
     background-color: antiquewhite;
     transition: all 0.2s ease;
+
+    h1 {
+      position: fixed;
+      left: 10px;
+      top: 10px;
+      font-size: 18px;
+      font-weight: 400;
+      color: rgb(53, 53, 53)
+    }
 
     iframe {
       transition: all 0.2s ease;

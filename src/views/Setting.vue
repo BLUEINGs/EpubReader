@@ -2,7 +2,7 @@
 import RadioInput from '@/components/inputs/RadioInput.vue';
 import IOInput from '@/components/inputs/IOInput.vue';
 import { BookShelf } from '@/utils/BookShelf.js';
-import { defaultReadOptions, ABSOULTE_DISENBALED, AUTO_ENABLED, ABSOLUTEENABLED,READING_MODE_SINGLE, READING_MODE_DOUBLE, READING_MODE_SCROLL, READING_MODE_AUTO } from '@/utils/ConstantVars.js';
+import { defaultReadOptions, ABSOULTE_DISENBALED, AUTO_ENABLED, ABSOLUTEENABLED, READING_MODE_SINGLE, READING_MODE_DOUBLE, READING_MODE_SCROLL, READING_MODE_AUTO } from '@/utils/ConstantVars.js';
 import bus from '@/utils/Bus.js';
 import { computed, ref, watch, watchEffect, toRaw, onBeforeMount } from 'vue';
 const options = defineModel("modelValue", {
@@ -48,6 +48,20 @@ watch(
   },
   { deep: true }
 )
+
+watch(
+  () => options.value.readingMode,
+  async (newVal, oldVal) => {
+    if (newVal == READING_MODE_SCROLL && oldVal != READING_MODE_SCROLL) {
+      if (options.value.lNovelEnabled == ABSOLUTEENABLED) {
+        options.value.lNovelEnabled = AUTO_ENABLED
+      }
+      await new BookShelf().saveBookOptions(props.hashCode, toRaw(options.value))
+      // window.location.reload();
+    }
+
+  },
+)
 /*
 | watch 第一个参数类型           | deep: true 内部属性变化触发？ |
 | ----------------------- | -------------------- |
@@ -71,6 +85,12 @@ watch(
         '滚动': READING_MODE_SCROLL
       }"></RadioInput>
       </li>
+      <li>开本方向<RadioInput v-model="options.pageDirection" :options="{
+        '默认': 'default',
+        '左开': 'ltr',
+        '右开': 'rtl'
+      }"></RadioInput>
+      </li>
       <li>启用点击翻页<IOInput v-model="options.clickToFlipEnabled"></IOInput>
       </li>
       <li>纸张颜色<input type="color" v-model="options.backgroundColor"></input>
@@ -90,13 +110,17 @@ watch(
         '启用': ABSOLUTEENABLED
       }"></RadioInput>
       </li>
+      <hr>
+      <h3>不推荐搭配的组合</h3>
+      <li>1.滚动模式+轻小说阅读器：当更换到滚动模式时，如果轻小说增强器是启用状态，会被换成自动（用户二次设置没招，视为它执意要用）</li>
+      <li>2.视口宽高比&lt;1+双开模式：阅读器默认宽高比小于1就是单开模式，强制使用可能渲染异常</li>
     </ul>
   </div>
 </template>
 <style lang="less" scoped>
 .setting-panel {
   box-sizing: border-box;
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 400px;

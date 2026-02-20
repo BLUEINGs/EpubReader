@@ -139,6 +139,24 @@ export class BookShelf {
     })
   }
 
+  async saveBookReadProcess(hashCode, process) {
+    await this.dbReady
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction("metadata", "readwrite")
+      const store = tx.objectStore("metadata")
+      const getReq = store.get(hashCode)
+      getReq.onsuccess = () => {
+        const rec = getReq.result
+        if (!rec) return resolve(false)
+        const updated = Object.assign({}, rec, { process, })
+        const putReq = store.put(updated)
+        putReq.onsuccess = () => resolve(true)
+        putReq.onerror = () => reject(putReq.error)
+      }
+      getReq.onerror = () => reject(getReq.error)
+    })
+  }
+
   async getBookByHashCode(hashCode) {
     await this.dbReady
     return new Promise((resolve, reject) => {

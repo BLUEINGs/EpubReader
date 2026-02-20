@@ -55,7 +55,8 @@ async function loadSpineAndInfos(zip) {
   }
   await imgFile.async("base64").then(base64Data => {
     // console.log("封面图片Base64数据加载完成", base64Data.length);
-    const mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
+    let mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
+    if(!mimeType) mimeType="image/png"
     const dataUrl = `data:${mimeType};base64,${base64Data}`;
     coverBase64 = dataUrl;
   });

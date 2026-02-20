@@ -11,9 +11,13 @@ const props = defineProps({
   name: {
     type: String,
     required: true
+  },
+  direcation: {
+    type: String,
+    default: "ltr"
   }
 })
-const value = defineModel("value", {
+const curPage = defineModel("value", {
   type: [Number, String],
   default: 0,
   required: true
@@ -28,12 +32,20 @@ watch 回调执行（拿到 newVal / oldVal）
 /* watch(value,()=>{
 
 }) */
+
+function background(){
+  if(props.direcation == "rtl"){
+    return `background: linear-gradient(to left, brown ${curPage.value / props.max * 100}%, white ${curPage.value / props.max * 100}%)`
+  }else{
+    return `background: linear-gradient(to right, brown ${curPage.value / props.max * 100}%, white ${curPage.value / props.max * 100}%)`
+  }
+}
 </script>
 <template>
   <!-- :属性=""，这个写法里面写得其实是“js表达式”，里面必须是一个合法js表达式，换句话说里面写的一定是代码，比如下面这行，加``变成模板字符串就算是合法表达式 -->
   <input type="range"
-    :style="`background: linear-gradient(to right, brown ${value / props.max * 100}%, white ${value / props.max * 100}%)`"
-    :name="props.name" :min="props.min" :max="props.max" v-model="value">
+    :style="background()"
+    :name="props.name" :min="props.min" :max="props.max" v-model="curPage">
 </template>
 <style lang="less" scoped>
 input {
