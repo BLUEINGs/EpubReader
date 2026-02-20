@@ -50,9 +50,9 @@ function handleEnter() {
 div,
 input {
   box-sizing: border-box;
-  width:82px;
-  padding:2px 8px;
-  margin:8px;
+  width: 82px;
+  padding: 2px 8px;
+  margin: 8px;
   outline: none;
   background: transparent;
   font-size: 14px;
@@ -72,5 +72,16 @@ input {
     -webkit-appearance: none;
     margin: 0;
   }
+}
+
+@media screen and (max-width:768px) {
+  div {
+    font-size: 12px;
+  }
+
+  div,input {
+    width: 72px;
+  }
+
 }
 </style>

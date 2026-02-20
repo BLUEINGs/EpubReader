@@ -124,6 +124,7 @@ watch(
   top: 0;
   left: 0;
   width: 400px;
+  max-width:80%;
   height: 100vh;
   padding: 20px;
   background-color: rgba(255, 255, 255, 0.8);

@@ -67,16 +67,19 @@ const curChapterIndex = ref(0)
   </div>
 </template>
 <style lang="less" scoped>
+
+
 .reader {
   width: 100%;
   height: 100vh;
-  h1{
+
+  h1 {
     position: fixed;
-    left:10px;
-    top:10px;
+    left: 10px;
+    top: 10px;
     font-size: 18px;
     font-weight: 400;
-    color:rgb(53, 53, 53)
+    color: rgb(53, 53, 53)
   }
 
   .viewer-core {
@@ -121,6 +124,15 @@ const curChapterIndex = ref(0)
       background: url('@/assets/icons/content.svg') no-repeat center;
       background-color: rgba(0, 0, 0, 0.2);
       background-size: 60% 60%;
+    }
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+  .reader {
+    .buttonArea {
+      width: 100%;
     }
   }
 }

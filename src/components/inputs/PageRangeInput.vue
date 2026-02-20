@@ -54,7 +54,7 @@ watch 回调执行（拿到 newVal / oldVal）
 function nextChapter() {
   if (curChapterIndex.value < chapterPageStartList.value.length - 1) {
     value.value = chapterPageStartList.value[curChapterIndex.value + 1]
-  }else{
+  } else {
     console.log("已经是最后一章了")
   }
 }
@@ -62,7 +62,7 @@ function nextChapter() {
 function prevChapter() {
   if (curChapterIndex.value > 0) {
     value.value = chapterPageStartList.value[curChapterIndex.value - 1]
-  }else{
+  } else {
     console.log("已经是第一章了")
   }
 }
@@ -73,17 +73,20 @@ function prevChapter() {
     <button v-if="showChapterSwitch" class="pre" @click="prevChapter">&lt;&lt;</button>
     <button class="pre" @click="value--">&lt;</button>
     <PageSelector v-model:selectedPage="value" :totalPages="props.max"></PageSelector>
-    <RangeInput :direcation="props.dir" v-model:value="value" :max="props.max" :min="props.min" :name="props.name"></RangeInput>
+    <RangeInput :direcation="props.dir" v-model:value="value" :max="props.max" :min="props.min" :name="props.name">
+    </RangeInput>
     <button class="next" @click="value++">&gt;</button>
     <button v-if="showChapterSwitch" class="next" @click="nextChapter">&gt;&gt;</button>
   </div>
 </template>
 <style lang="less" scoped>
 .slider-input {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  height: 32px;
+  max-width: 80%;
+  height: 48px;
   border-radius: 24px;
   background-color: rgba(0, 0, 0, 0.2);
 
@@ -112,5 +115,29 @@ function prevChapter() {
     color: rgb(53, 53, 53);
     margin-right: 10px;
   }
+}
+
+@media screen and (max-width:768px) {
+  .slider-input {
+    span {
+      font-size: 8px;
+      font-weight: bold;
+      color: rgb(53, 53, 53);
+      margin-right: 10px;
+    }
+
+    button {
+      border: none;
+      outline: none;
+      margin: 0 4px;
+      font-size: 18px;
+      font-weight: bold;
+      color: rgb(53, 53, 53);
+      background: transparent;
+      cursor: pointer;
+    }
+  }
+
+
 }
 </style>
