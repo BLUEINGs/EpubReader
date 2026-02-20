@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import BookCard from '@/components/BookCard.vue'
 import JSZip from 'jszip'
 import { loadSpineAndInfos } from "@/utils/EpubLoader.js"
+import SHA256 from "crypto-js/sha256";
+import WordArray from "crypto-js/lib-typedarrays";
 
 const router = useRouter()
 
@@ -22,9 +24,18 @@ const selected = ref([]) // 存放 hashCode
 
 // 计算 SHA-256
 async function calcSHA256(arrayBuffer) {
-  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  // 优先使用原生 Web Crypto（需要 HTTPS）
+  if (crypto?.subtle?.digest) {
+    const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("")
+  }
+
+  // 降级方案：使用 CryptoJS
+  const wordArray = WordArray.create(arrayBuffer)
+  return SHA256(wordArray).toString()
 }
 
 // 上传文件
