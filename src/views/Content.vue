@@ -44,10 +44,24 @@ onBeforeUnmount(() => {
 })
 
 
+const menu=ref(null)
+function handleClickOutside(event) {
+  if (menu.value && !menu.value.contains(event.target)) {
+    console.log('点击了元素外部！')
+    // 在这里触发你的函数
+  }
+}
 
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 <template>
-  <div class="setting-panel">
+  <div class="setting-panel" ref="menu">
     <h2>目录</h2>
     <ul class="content-list">
       <li v-for="(item, index) in props.content" :key="index"><a item :href="`#${item.href}`">{{ item.label }}</a></li>

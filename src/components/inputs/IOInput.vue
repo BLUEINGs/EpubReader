@@ -46,4 +46,25 @@ const value = defineModel({
     }
   }
 }
+
+@media screen and (max-width:768px) {
+  .io-input {
+    display: inline-block;
+    border-radius: 18px;
+    // border: 4px solid white;
+    box-shadow: 1px 1px 0 0.5px rgba(0, 0, 0, 0.6);
+    background-color: rgb(200, 200, 200);
+    overflow: hidden;
+
+    button {
+      border: none;
+      outline: none;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 2px 4px;
+      color: rgb(0, 0, 0);
+      background-color: rgb(200, 200, 200);
+    }
+  }
+}
 </style>

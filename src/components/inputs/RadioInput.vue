@@ -54,4 +54,24 @@ const selected = defineModel({
     }
   }
 }
+
+@media screen and (max-width:768px) {
+.radio-input {
+  display:inline-block;
+  border-radius: 20px;
+  border:2px solid white;
+  box-shadow: 1px 1px 0 0.5px rgba(0, 0, 0, 0.6);
+  background-color: rgb(200, 200, 200);
+  overflow: hidden;
+
+  button {
+    font-size: 12px;
+    padding: 4px;
+
+    &.selected {
+      border-radius:20px;
+    }
+  }
+}
+}
 </style>

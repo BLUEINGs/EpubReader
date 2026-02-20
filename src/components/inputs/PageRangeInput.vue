@@ -85,7 +85,7 @@ function prevChapter() {
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  max-width: 80%;
+  max-width: 100%;
   height: 48px;
   border-radius: 24px;
   background-color: rgba(0, 0, 0, 0.2);

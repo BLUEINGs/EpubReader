@@ -7,7 +7,7 @@ import Setting from './Setting.vue';
 import Content from './Content.vue';
 import { BookShelf } from '@/utils/BookShelf.js';
 import { defaultReadOptions } from '@/utils/ConstantVars.js';
-import { computed, ref, watch, watchEffect, toRaw, onBeforeMount } from 'vue';
+import { computed, ref, watch, watchEffect, toRaw, onBeforeMount,onMounted,onBeforeUnmount } from 'vue';
 const props = defineProps({
   hashCode: {
     type: String,
@@ -62,13 +62,11 @@ const curChapterIndex = ref(0)
       <button class="setting" @click="showSetting = !showSetting"></button>
       <button class="content" @click="showContent = !showContent"></button>
     </div>
-    <Setting :hashCode="props.hashCode" v-model="options" v-if="showSetting"></Setting>
+    <Setting @close="showSetting=false" :hashCode="props.hashCode" v-model="options" v-if="showSetting"></Setting>
     <Content :hashCode="props.hashCode" :content="content" v-if="showContent"></Content>
   </div>
 </template>
 <style lang="less" scoped>
-
-
 .reader {
   width: 100%;
   height: 100vh;
@@ -89,6 +87,7 @@ const curChapterIndex = ref(0)
 
   .buttonArea {
     display: flex;
+    flex-wrap: wrap;
     position: fixed;
     width: 80%;
     left: 50%;
@@ -132,6 +131,7 @@ const curChapterIndex = ref(0)
 @media screen and (max-width: 768px) {
   .reader {
     .buttonArea {
+      justify-content: flex-end;
       width: 100%;
     }
   }

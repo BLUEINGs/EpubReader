@@ -4,7 +4,7 @@ import IOInput from '@/components/inputs/IOInput.vue';
 import { BookShelf } from '@/utils/BookShelf.js';
 import { defaultReadOptions, ABSOULTE_DISENBALED, AUTO_ENABLED, ABSOLUTEENABLED, READING_MODE_SINGLE, READING_MODE_DOUBLE, READING_MODE_SCROLL, READING_MODE_AUTO } from '@/utils/ConstantVars.js';
 import bus from '@/utils/Bus.js';
-import { computed, ref, watch, watchEffect, toRaw, onBeforeMount } from 'vue';
+import { computed, ref, watch, watchEffect, toRaw, onBeforeUnmount, onMounted } from 'vue';
 const options = defineModel("modelValue", {
   type: Object,
   default: () => {
@@ -71,9 +71,26 @@ watch(
 看好，如果想用deep:true，watch的第一个参数只能是getter或是ref，而不能是reactive
 
 */
+
+const emit = defineEmits(["close"])
+const menu = ref(null)
+function handleClickOutside(event) {
+  if (menu.value && !menu.value.contains(event.target)) {
+    console.log('点击了元素外部！')
+    // emit("close")
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 <template>
-  <div class="setting-panel">
+  <div class="setting-panel" ref="menu">
     <h2>设置</h2>
     <ul class="options">
       <li>启用自动最佳开版适配<IOInput v-model="options.bestFitEnabled"></IOInput>
@@ -124,7 +141,7 @@ watch(
   top: 0;
   left: 0;
   width: 400px;
-  max-width:80%;
+  max-width: 60%;
   height: 100vh;
   padding: 20px;
   background-color: rgba(255, 255, 255, 0.8);
@@ -138,6 +155,16 @@ watch(
       justify-content: space-between;
       align-items: center;
       margin: 20px 0;
+    }
+  }
+}
+
+@media screen and (max-width:768px) {
+  .setting-panel {
+    ul {
+      li {
+        font-size:14px
+      }
     }
   }
 }
