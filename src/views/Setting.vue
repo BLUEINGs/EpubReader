@@ -118,6 +118,8 @@ onBeforeUnmount(() => {
       </li>
       <li>启用JavaScript加载<IOInput v-model="options.loadJsEnabled"></IOInput>
       </li>
+      <li>字体大小<input type="number" v-model="options.fontSize" min="8" max="128"></input>px
+      </li>
       <li>页边距<input type="number" v-model="options.pagePadding" min="0" max="100"></input>px
       </li>
       <hr>
@@ -137,6 +139,7 @@ onBeforeUnmount(() => {
 <style lang="less" scoped>
 .setting-panel {
   box-sizing: border-box;
+  overflow-y:scroll;
   position: fixed;
   top: 0;
   left: 0;

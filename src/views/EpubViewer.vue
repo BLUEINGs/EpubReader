@@ -957,6 +957,8 @@ const content = defineModel("content", {
   type: Array,
   default: () => []
 });//目录数据，格式[{title:"章节1",index:0},]
+
+
 async function onIframeLoad(index, event, isReLoad = false) {
   if (index != 0 && (width.value == 0 || height.value == 0)) {
     console.warn(`加载章节${index}时阅读器尺寸未确定，将延后加载`);
@@ -965,7 +967,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }, 500);
     return
   }
-
 
   console.log("设置章节容器样式：", index);
   //设置iframe样式，主要是阅读器尺寸。
@@ -1032,6 +1033,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
         box-sizing: border-box;
         width: ${width.value / 2}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
+        font-size:${options.value.fontSize}px;
       }
       svg,img,image{
         max-width: ${width.value / 2}px;
@@ -1054,6 +1056,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
         padding-top:${pagePadding.value}px;
         padding-bottom:${pagePadding.value}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
+        font-size:${options.value.fontSize}px;
       }
       svg,img,image{
         max-width: ${width.value / 2}px;
@@ -1077,7 +1080,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   svg标签则是作者指定会设置svg宽度/高度100%的情况
    */
 
-  //处理插画图片，使其顶格显示
+  //处理插画图片，使其顶格显示（无论是否轻小说都会把使图片全屏显示）
   if (factReadingMode.value != READING_MODE_SCROLL) {
     //滚动模式下不处理图片顶格，因为滚动模式下图片本来就不受分页限制了
     doc.querySelectorAll("img").forEach(imgEl => {
@@ -1091,7 +1094,11 @@ async function onIframeLoad(index, event, isReLoad = false) {
             parent.style.left = `-${pagePadding.value}px`;
             return
           }
-        }
+        } /* else if (parent.tagName.toLowerCase() == "svg") {
+          parent.style.position = "relative";
+          parent.style.top = `-${pagePadding.value}px`;
+          parent.style.left = `-${pagePadding.value}px`;
+        } */
         imgEl.style.position = "relative";
         imgEl.style.top = `-${pagePadding.value}px`;
         imgEl.style.left = `-${pagePadding.value}px`;
@@ -1101,20 +1108,18 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
   //处理一下svg图片的比例缩放问题
   doc.querySelectorAll("svg").forEach(svgEl => {
-
     if (svgEl.getAttribute("width") == "100%" || svgEl.style.width == "100%") {
       svgEl.style.width = `${width.value / 2}px`
       svgEl.style.position = "relative"
-      if (factReadingMode.value != READING_MODE_SCROLL) {
-        svgEl.style.top = `-${pagePadding.value}px`
-      }
+
     }
     if (svgEl.getAttribute("height") == "100%" || svgEl.style.height == "100%") {
       svgEl.style.height = `${height.value}px`
       svgEl.style.position = "relative"
-      if (factReadingMode.value != READING_MODE_SCROLL) {
-        svgEl.style.top = `-${pagePadding.value}px`
-      }
+    }
+    if (factReadingMode.value != READING_MODE_SCROLL) {
+      svgEl.style.top = `-${pagePadding.value}px`
+      svgEl.style.left = `-${pagePadding.value}px`
     }
     svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
   });

@@ -20,6 +20,7 @@ export const defaultReadOptions = {
   iframeScrollEnabled: false,
   loadJsEnabled: true,
   pagePadding:30,
+  fontSize:16,
   lNovelEnabled: AUTO_ENABLED,
 
 
