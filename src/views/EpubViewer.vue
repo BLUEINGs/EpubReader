@@ -204,12 +204,10 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
       //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
 
       if (isReLoad) {
-        console.log("重载模式，要去掉left")
         imgEl.style.position = "static";
         imgEl.style.left = "0"
         imgEl.style.top = "0"
         if (imgEl.tagName == "image") {
-          console.log("打算去掉svg标签的")
           imgEl.parentElement.style.position = "static";
           imgEl.parentElement.style.top = "0"
           imgEl.parentElement.style.left = "0"
@@ -224,9 +222,9 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
       }
 
       if (options.value.pageDirection == "rtl") {
-        imgEl.style.left = `-${width.value / 2}px`
+        imgEl.style.left = `-${width.value / 2 + pagePadding.value}px`
         if (imgEl.tagName == "image") {
-          imgEl.parentElement.style.left = `-${width.value / 2}px`
+          imgEl.parentElement.style.left = `-${width.value / 2 + pagePadding.value}px`
         }
       }
     }
@@ -1030,7 +1028,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     pageStyleEl.textContent = `
       body {
         margin:0;
-        padding:0;
+        // padding:${pagePadding.value};
         box-sizing: border-box;
         width: ${width.value / 2}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
@@ -1045,14 +1043,14 @@ async function onIframeLoad(index, event, isReLoad = false) {
   } else {
     pageStyleEl.textContent = `
       body {
-        margin:0;
+        margin:0 ${pagePadding.value}px;
         padding:0;
         box-sizing: border-box;
-        width: ${width.value / 2}px;
+        width: ${width.value / 2 - pagePadding.value * 2}px;
         height: ${height.value}px;
         column-fill: auto;
-        column-gap: 0px;
-        column-width: ${width.value / 2}px;
+        column-gap: ${pagePadding.value * 2}px;
+        column-width: ${width.value / 2 - pagePadding.value * 2}px;
         padding-top:${pagePadding.value}px;
         padding-bottom:${pagePadding.value}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
@@ -1088,13 +1086,15 @@ async function onIframeLoad(index, event, isReLoad = false) {
           const parent = imgEl.parentElement;
           if (parent.tagName.toLowerCase() == "a") {
             //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
-            parent.style.top = `-${pagePadding.value}px`;
             parent.style.position = "relative";
+            parent.style.top = `-${pagePadding.value}px`;
+            parent.style.left = `-${pagePadding.value}px`;
             return
           }
         }
         imgEl.style.position = "relative";
         imgEl.style.top = `-${pagePadding.value}px`;
+        imgEl.style.left = `-${pagePadding.value}px`;
       }
     });
   }
@@ -1128,7 +1128,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   });
 
   //处理文本标签的默认内边距
-  if (isReLoad) {
+  /* if (isReLoad) {
     //如果是重新加载章节，就先移除旧的text-wrapper
     const oldWrappers = doc.querySelectorAll("span[text-wrapper]");
     oldWrappers.forEach(wrapper => {
@@ -1137,8 +1137,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
         wrapper.replaceWith(...wrapper.childNodes);//把wrapper移除，直接用子节点替代
       }
     });
-  }
-  const textElements = doc.querySelectorAll("p,h1,h2,h3,h4,h5,h6");
+  }*/
+  /* const textElements = doc.querySelectorAll("p,h1,h2,h3,h4,h5,h6");
   textElements.forEach(el => {
     let hasIllus = false;
     el.querySelectorAll("img,image").forEach(imgEl => {
@@ -1159,7 +1159,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
     warpper.setAttribute("text-wrapper", "");
     el.replaceWith(warpper);//这个api是把warpper放到el位置，然后el移除。而不是把让原来的el=warpper
     warpper.appendChild(el);
-  });
+  }); */
 
   //使文本选中更流畅
   doc.body.style.webkitUserSelect = "text";
@@ -1338,9 +1338,17 @@ async function onIframeLoad(index, event, isReLoad = false) {
     // console.log("章节文档点击事件，计算全局X位置：", clickX);
     // console.log("视口的宽", window.innerWidth);
     if (clickX < window.innerWidth / 2) {
-      prevPage();
+      if (options.value.pageDirection == "rtl") {
+        nextPage();
+      } else {
+        prevPage();
+      }
     } else {
-      nextPage();
+      if (options.value.pageDirection == "rtl") {
+        prevPage();
+      } else {
+        nextPage();
+      }
     }
   })
 
@@ -1700,9 +1708,11 @@ function reloadFactReadingMode() {
     viewerRef.value.style.overflowX = "hidden";
     // console.log(viewerRef.value.style);
     viewerRef.value.scrollLeft = 0;//切换到滚动模式后默认滚动到顶部，防止之前的双页模式滚动位置过大导致看不到内容
+    viewerRef.value.style.scrollbarGutter = "stable";
   } else {
     viewerRef.value.style.overflow = "hidden";
     viewerRef.value.scrollTop = 0;
+    viewerRef.value.style.removeProperty("scrollbar-gutter")
   }
   console.log("实际使用的阅读模式：", factReadingMode.value);
 }
