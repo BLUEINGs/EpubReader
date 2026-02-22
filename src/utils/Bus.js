@@ -1,7 +1,10 @@
 import { reactive } from 'vue'
 import { defaultReadOptions } from './ConstantVars.js'
 
-const bus = reactive({curReadOptions:defaultReadOptions})  // 或者简单用空对象
+const bus = reactive({
+  curReadOptions:defaultReadOptions,
+  changePageByInput:false
+})  // 或者简单用空对象
 /*
 reactive()跟ref()区别：
 1. reactive()适用于对象和数组，ref()适用于基本数据类型（如字符串、数字、布尔值等）和对象活或数组。

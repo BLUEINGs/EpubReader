@@ -2,6 +2,7 @@
 import RangeInput from './RangeInput.vue';
 import PageSelector from './PageSelector.vue';
 import { computed } from 'vue';
+import bus from "@/utils/Bus.js"
 
 const props = defineProps({
   max: {
@@ -57,6 +58,7 @@ function nextChapter() {
   } else {
     console.log("已经是最后一章了")
   }
+  bus.changePageByInput=true
 }
 
 function prevChapter() {
@@ -65,17 +67,28 @@ function prevChapter() {
   } else {
     console.log("已经是第一章了")
   }
+  bus.changePageByInput=true
+}
+
+function nextPage(){
+  value.value++
+  bus.changePageByInput=true
+}
+
+function prevPage(){
+  value.value--
+  bus.changePageByInput=true
 }
 </script>
 <template>
   <!-- :属性=""，这个写法里面写得其实是“js表达式”，里面必须是一个合法js表达式，换句话说里面写的一定是代码，比如下面这行，加``变成模板字符串就算是合法表达式 -->
   <div :dir="props.dir" class="slider-input">
     <button v-if="showChapterSwitch" class="pre" @click="prevChapter">&lt;&lt;</button>
-    <button class="pre" @click="value--">&lt;</button>
+    <button class="pre" @click="prevPage">&lt;</button>
     <PageSelector v-model:selectedPage="value" :totalPages="props.max"></PageSelector>
     <RangeInput :direcation="props.dir" v-model:value="value" :max="props.max" :min="props.min" :name="props.name">
     </RangeInput>
-    <button class="next" @click="value++">&gt;</button>
+    <button class="next" @click="nextPage">&gt;</button>
     <button v-if="showChapterSwitch" class="next" @click="nextChapter">&gt;&gt;</button>
   </div>
 </template>

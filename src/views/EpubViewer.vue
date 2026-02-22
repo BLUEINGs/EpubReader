@@ -199,6 +199,35 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
 
     const imgRate = Math.round((imgWidth / imgHeight) * 100) / 100
     console.log("计算图片开版比例：", imgRate);
+
+    //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
+    if (isImgIllus(imgEl)) {
+      console.log("图片被标记为插画(不分大小图)，应用全屏尺寸优化");
+      if (imgEl.tagName.toLowerCase() != "image") {
+        // console.log("为img标签设置全屏尺寸，此时的height值：", imgHeight);
+        if (factReadingMode.value != READING_MODE_SCROLL) {
+          imgEl.style.height = `${height.value}px`;
+        }
+        imgEl.style.width = `${width.value / 2}px`;
+      }
+      if (imgEl.parentElement) {
+        const parent = imgEl.parentElement;
+        parent.style.display = "block";
+        if (parent.tagName.toLowerCase() != "svg") {
+          parent.style.height = "auto";
+        }
+        parent.style.padding = "0";
+        if (parent.tagName.toLowerCase() == "p" && parent.children.length == 1) {
+          parent.replaceWith(...parent.childNodes);//把p标签移除，直接用子节点替代
+        }
+      }
+    }
+
+    if (factReadingMode.value == READING_MODE_SCROLL) {
+      return
+    }
+
+    //处理双开图
     if ((isImgIllus(imgEl) && imgRate > 1)) {
       console.log("图片被标记为双页插画，应用双页尺寸优化");
       //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
@@ -225,25 +254,6 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
         imgEl.style.left = `-${width.value / 2 + pagePadding.value}px`
         if (imgEl.tagName == "image") {
           imgEl.parentElement.style.left = `-${width.value / 2 + pagePadding.value}px`
-        }
-      }
-    }
-    //处理所有要全屏显示的所有插图（包括单页和双页的）（img图片没有内边距是轻小说优化器特有的，svg属于是原本就应该那样实现）
-    if (isImgIllus(imgEl)) {
-      console.log("图片被标记为插画(不分大小图)，应用全屏尺寸优化");
-      if (imgEl.tagName.toLowerCase() != "image") {
-        // console.log("为img标签设置全屏尺寸，此时的height值：", imgHeight);
-        imgEl.style.height = `${height.value}px`;
-      }
-      if (imgEl.parentElement) {
-        const parent = imgEl.parentElement;
-        parent.style.display = "block";
-        if (parent.tagName.toLowerCase() != "svg") {
-          parent.style.height = "auto";
-        }
-        parent.style.padding = "0";
-        if (parent.tagName.toLowerCase() == "p" && parent.children.length == 1) {
-          parent.replaceWith(...parent.childNodes);//把p标签移除，直接用子节点替代
         }
       }
     }
@@ -557,7 +567,13 @@ async function getResource(curFilePath, src, type = "blobUrl") {
 //进度加载器
 const readProcess = ref(0);
 const totalPages = ref(0);
-const currentPage = defineModel("currentPage", { type: [Number, String], default: 2 });
+const currentPage = defineModel(
+  "currentPage",
+  {
+    type: [Number, String],
+    default: 2
+  }
+);
 
 const isScrolling = ref(false)
 
@@ -568,7 +584,14 @@ useScrollObserver(viewerRef, updatePagesParams, { isScrolling, });
 const emit = defineEmits(["update:totalPages"])
 
 //这里的逻辑是滚动=>更新页码和进度
+//该函数本意是希望更新页码以外的滚动更新
+//滚动直接来源于：用户手动滚动、skipToPage函数的滚动（next/prePage函数、页码更新调用）
+//现在在满足所有需求的条件下，只有一个情况真正用得上滚动监听器：
+//也就是竖屏模式，竖屏模式以外的模式滚动监听器开不开都一样
 function updatePagesParams(scrollInfo) {
+  if (bus.pageChangeByInput) {
+    return
+  }
   console.log("滚动信息：", {
     scrollLeft: scrollInfo.scrollLeft,
     scrollTop: scrollInfo.scrollTop,
@@ -576,6 +599,8 @@ function updatePagesParams(scrollInfo) {
     scrollHeight: scrollInfo.scrollHeight,
     viewerWidth: scrollInfo.clientWidth,
   })
+  //直接更新页码时（滚动时）禁止页码监听
+  // scrollWatched.value = true
   if (factReadingMode.value != READING_MODE_SCROLL) {
     totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
     emit("update:totalPages", totalPages.value)
@@ -593,12 +618,15 @@ function updatePagesParams(scrollInfo) {
     currentPage.value = Math.ceil((scrollInfo.scrollTop + 1) / height.value);
     readProcess.value = getCurProcess(scrollInfo);
   }
-
   console.log(`当前页码：${currentPage.value} / ${totalPages.value}`);
 }
 
 //更新页码=>滚动
+//该函数本意是希望滚动以外的页码更新，不希望任何滚动带来的影响
+//更新页码直接来源于：进度条拖拽、next/prePage函数（按钮或点击翻页）、updatePagesParams函数
+// const currentPageWatched=ref(false)
 watch(currentPage, () => {
+
   console.log("页码变化，新的页码：", currentPage.value);
   if (currentPage.value < 1) {
     currentPage.value = 1;
@@ -607,9 +635,20 @@ watch(currentPage, () => {
     currentPage.value = totalPages.value;
   }
   if (isScrolling.value) {
+    //正在滚动且滚动来自用户
     return
   }
-  skipToPage(currentPage.value);
+  /* if(bus.pageChangeByInput){
+    return
+  } */
+  /*
+    bus.pageChangeByInput=false
+
+  如何识别拖条滚动？草？气晕了
+  使用封装方法的方式或手动修改页面翻页是机器滚动，
+  滚动鼠标滚轮是用户滚动
+  */
+  skipToPage(currentPage.value, true);
 })
 
 function getCurProcess(scrollInfo) {
@@ -732,6 +771,9 @@ function recoverProcess() {
 }
 
 function skipToPage(pageNum) {
+  /*   if (!scrollFromUser) {
+      scrollingByUser.value = false
+    } */
   const viewer = viewerRef.value;
   if (factReadingMode.value == READING_MODE_SCROLL) {
     viewer.scrollTop = (pageNum - 1) * height.value;
@@ -748,6 +790,7 @@ function skipToPage(pageNum) {
       viewer.scrollLeft = (pageNum - 1) * pageWidth;
     }
   }
+  // scrollingByUser.value=true
 }
 
 function nextPage() {
@@ -755,16 +798,16 @@ function nextPage() {
     console.log("已经是最后一页了");
     return
   }
-  skipToPage(currentPage.value + 1);
+  skipToPage(currentPage.value + 1, false);
 }
 
 function prevPage() {
   if (currentPage.value >= totalPages.value) {
     //页码异常
     console.warn("页码异常，调整到最后一页");
-    skipToPage(totalPages.value - 2);
+    skipToPage(totalPages.value - 2, false);
   }
-  skipToPage(currentPage.value - 1);
+  skipToPage(currentPage.value - 1, false);
 }
 
 const wapperRef = ref(null);//外层适配包裹容器引用
@@ -866,12 +909,15 @@ function isImgIllus(imgEl) {
     isIllus = (parent.getAttribute("width") == "100%" || parent.style.width == "100%"
       || parent.getAttribute("height") == "100%" || parent.style.height == "100%")
   } else {
-    isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
+    console.log("加入判断")
+    isIllus = (Math.abs(imgEl.scrollHeight - height.value + pagePadding.value * 2) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2 + pagePadding.value * 2) <= 10);
+    console.log("imgEl.scrollWidth:", imgEl.scrollWidth, ";width/2:", width.value / 2, ";pagePadding:", pagePadding.value)
+    console.log("判定结果：", isIllus)
+    if (!isIllus) {
+      isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
+    }
   }
   imgIllusMap.value.set(imgEl, isIllus)
-  // if (blobUrl) {
-  // imgIllusMap.value.set(blobUrl, isIllus);
-  // }
   return isIllus;
 }
 
@@ -941,8 +987,8 @@ async function setIsLNovel(coverDoc) {
       isLNovel.value = false;
     });
 
-    if (options.value.lNovelEnabled == 0 || options.value.readingMode == READING_MODE_SCROLL) {
-      console.log("禁用轻小说优化器：轻小说阅读器已强制禁用或使用滚动模式");
+    if (options.value.lNovelEnabled == 0) {
+      console.log("禁用轻小说优化器：轻小说阅读器已强制禁用");
       isLNovel.value = false;
     }
   } else if (options.value.lNovelEnabled == 2) {
@@ -1029,13 +1075,14 @@ async function onIframeLoad(index, event, isReLoad = false) {
     pageStyleEl.textContent = `
       body {
         margin:0;
-        // padding:${pagePadding.value};
+        padding:0 ${pagePadding.value};
         box-sizing: border-box;
         width: ${width.value / 2}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
         font-size:${options.value.fontSize}px;
       }
       svg,img,image{
+        box-sizing: border-box;
         max-width: ${width.value / 2}px;
         max-height: ${height.value}px;
         object-fit: contain;
@@ -1081,30 +1128,28 @@ async function onIframeLoad(index, event, isReLoad = false) {
    */
 
   //处理插画图片，使其顶格显示（无论是否轻小说都会把使图片全屏显示）
-  if (factReadingMode.value != READING_MODE_SCROLL) {
-    //滚动模式下不处理图片顶格，因为滚动模式下图片本来就不受分页限制了
-    doc.querySelectorAll("img").forEach(imgEl => {
-      if (isImgIllus(imgEl)) {
-        if (imgEl.parentElement) {
-          const parent = imgEl.parentElement;
-          if (parent.tagName.toLowerCase() == "a") {
-            //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
-            parent.style.position = "relative";
-            parent.style.top = `-${pagePadding.value}px`;
-            parent.style.left = `-${pagePadding.value}px`;
-            return
-          }
-        } /* else if (parent.tagName.toLowerCase() == "svg") {
+  //滚动模式下不处理图片顶格，因为滚动模式下图片本来就不受分页限制了
+  doc.querySelectorAll("img").forEach(imgEl => {
+    if (isImgIllus(imgEl)) {
+      if (imgEl.parentElement) {
+        const parent = imgEl.parentElement;
+        if (parent.tagName.toLowerCase() == "a") {
+          //如果img的父元素是a标签，说明图片是超链接，给a标签也设置marginTop
           parent.style.position = "relative";
-          parent.style.top = `-${pagePadding.value}px`;
+          if (factReadingMode.value != READING_MODE_SCROLL) {
+            parent.style.top = `-${pagePadding.value}px`;
+          }
           parent.style.left = `-${pagePadding.value}px`;
-        } */
-        imgEl.style.position = "relative";
-        imgEl.style.top = `-${pagePadding.value}px`;
-        imgEl.style.left = `-${pagePadding.value}px`;
+          return
+        }
       }
-    });
-  }
+      imgEl.style.position = "relative";
+      if (factReadingMode.value != READING_MODE_SCROLL) {
+        imgEl.style.top = `-${pagePadding.value}px`;
+      }
+      imgEl.style.left = `-${pagePadding.value}px`;
+    }
+  });
 
   //处理一下svg图片的比例缩放问题
   doc.querySelectorAll("svg").forEach(svgEl => {
