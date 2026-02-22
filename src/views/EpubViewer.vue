@@ -1055,9 +1055,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
   iframe.style.transition = `all ${transitionDuration}ms ease`;
 
   if (index === 0) {    //获取封面页的，看是不是实际上只有一张图片
-    // await setIsLNovel();
-    console.log("932行：isLNovel结果：", isLNovel.value)
-
     //首次设置阅读器尺寸
     setViewerSize();
     //首次设置开本方向
@@ -1108,7 +1105,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   if (factReadingMode.value == READING_MODE_SCROLL) {
     pageStyleEl.textContent = `
       body {
-        cursor: url(${cursor}) 16 16, auto;
+        cursor: ${isClickToTurnPageEnabled.value ? "url(" + cursor + ") 16 16" : "auto"}, auto;
         margin:0;
         padding:0 ${pagePadding.value}px;
         box-sizing: border-box;
@@ -1127,7 +1124,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   } else {
     pageStyleEl.textContent = `
       body {
-        cursor: url(${cursor}) 16 16, auto;
+        cursor: ${isClickToTurnPageEnabled.value ? "url(" + cursor + ") 16 16" : "auto"}, auto;
         margin:0 ${pagePadding.value}px;
         padding:0;
         box-sizing: border-box;
@@ -1792,10 +1789,6 @@ watch(() => bus.curReadOptions, async (newOptions) => {
   //尺寸重加载逻辑
   setViewerSize();//重写计算factReadingMode和viewerRef的尺寸
   viewerRef.value.style.backgroundColor = options.value.backgroundColor;
-  if (options.value.clickToFlipEnabled) {
-    // console.log("光标测试")
-    viewerRef.value.style.cursor = 'url("@/assets/icons/cursor.svg")'
-  }
   reLoadViewer();
 },
   { deep: true }
