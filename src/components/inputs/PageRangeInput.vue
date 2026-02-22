@@ -53,31 +53,47 @@ watch 回调执行（拿到 newVal / oldVal）
 }) */
 
 function nextChapter() {
+  changePage()
   if (curChapterIndex.value < chapterPageStartList.value.length - 1) {
     value.value = chapterPageStartList.value[curChapterIndex.value + 1]
   } else {
     console.log("已经是最后一章了")
   }
-  bus.changePageByInput=true
 }
 
 function prevChapter() {
+  changePage()
   if (curChapterIndex.value > 0) {
     value.value = chapterPageStartList.value[curChapterIndex.value - 1]
   } else {
     console.log("已经是第一章了")
   }
-  bus.changePageByInput=true
 }
 
-function nextPage(){
+function nextPage() {
+  changePage()
   value.value++
-  bus.changePageByInput=true
 }
 
-function prevPage(){
+function prevPage() {
+  changePage()
   value.value--
-  bus.changePageByInput=true
+}
+
+function handleChange() {
+  changePage()
+}
+
+function changePage() {
+  bus.changePageByInput = true
+  setTimeout(() => {
+    bus.changePageByInput = false
+  }, 300)
+}
+
+function handleValueUpdate(pageValue) {
+  changePage()
+  value.value = pageValue
 }
 </script>
 <template>
@@ -86,7 +102,8 @@ function prevPage(){
     <button v-if="showChapterSwitch" class="pre" @click="prevChapter">&lt;&lt;</button>
     <button class="pre" @click="prevPage">&lt;</button>
     <PageSelector v-model:selectedPage="value" :totalPages="props.max"></PageSelector>
-    <RangeInput :direcation="props.dir" v-model:value="value" :max="props.max" :min="props.min" :name="props.name">
+    <RangeInput @change="handleChange" :direcation="props.dir" :value="value" @update:value="handleValueUpdate"
+      :max="props.max" :min="props.min" :name="props.name">
     </RangeInput>
     <button class="next" @click="nextPage">&gt;</button>
     <button v-if="showChapterSwitch" class="next" @click="nextChapter">&gt;&gt;</button>

@@ -12,11 +12,12 @@ export const READING_MODE_AUTO = "auto"
 export const defaultReadOptions = {
 
   bestFitEnabled: true,
-  readingMode:READING_MODE_AUTO,
+  reaedingMod:READING_MODE_AUTO,
   pageDirection: "ltr",//开本方向[default, ltr, rtl]
   clickToFlipEnabled: false,
   backgroundColor: "antiquewhite",
   loadByHtml:true,
+  compatibleMode:false,
   iframeScrollEnabled: false,
   loadJsEnabled: true,
   pagePadding:30,

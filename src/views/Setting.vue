@@ -112,8 +112,10 @@ onBeforeUnmount(() => {
       </li>
       <li>纸张颜色<input type="color" v-model="options.backgroundColor"></input>
       </li>
-      <li>强兼容模式（以HTML渲染）<IOInput v-model="options.loadByHtml"></IOInput>
+      <li>兼容模式（以HTML渲染）<IOInput v-model="options.loadByHtml"></IOInput>
       </li>
+      <!-- <li>强兼容模式（当渲染异常时）<IOInput v-model="options.compatibleMode"></IOInput>
+      </li> -->
       <li>调试模式<IOInput v-model="options.iframeScrollEnabled"></IOInput>
       </li>
       <li>启用JavaScript加载<IOInput v-model="options.loadJsEnabled"></IOInput>

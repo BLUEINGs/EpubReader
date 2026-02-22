@@ -204,9 +204,14 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
     if (isImgIllus(imgEl)) {
       console.log("图片被标记为插画(不分大小图)，应用全屏尺寸优化");
       if (imgEl.tagName.toLowerCase() != "image") {
-        // console.log("为img标签设置全屏尺寸，此时的height值：", imgHeight);
         if (factReadingMode.value != READING_MODE_SCROLL) {
           imgEl.style.height = `${height.value}px`;
+        } else {
+          // if (options.value.compatibleMode) {
+          // imgEl.style.height = `${(width.value / 2) / imgRate}px`
+          // } else {
+          imgEl.style.removeProperty("height")
+          // }
         }
         imgEl.style.width = `${width.value / 2}px`;
       }
@@ -221,39 +226,51 @@ async function betterLNovel(index, iframe, chapterDoc, isReLoad = false) {
           parent.replaceWith(...parent.childNodes);//把p标签移除，直接用子节点替代
         }
       }
+      imgEl.style.maxWidth = `${width.value / 2}`
+      if (factReadingMode.value == READING_MODE_SCROLL) {
+        imgEl.style.maxHeight = "none"
+        //这行是滚动优化，滚动模式下如果一张插画比开版高度更高，可以让他完全放得下
+      }
     }
-
-    if (factReadingMode.value == READING_MODE_SCROLL) {
-      return
-    }
-
     //处理双开图
     if ((isImgIllus(imgEl) && imgRate > 1)) {
       console.log("图片被标记为双页插画，应用双页尺寸优化");
       //说明该图片就是开本大小，且刚好占两页，直接这一章节改成双页尺寸
 
       if (isReLoad) {
-        imgEl.style.position = "static";
-        imgEl.style.left = "0"
-        imgEl.style.top = "0"
+        imgEl.style.removeProperty("position")
+        imgEl.style.removeProperty("left")
+        imgEl.style.removeProperty("top")
         if (imgEl.tagName == "image") {
-          imgEl.parentElement.style.position = "static";
-          imgEl.parentElement.style.top = "0"
-          imgEl.parentElement.style.left = "0"
+          imgEl.parentElement.style.removeProperty("position")
+          imgEl.parentElement.style.removeProperty("left")
+          imgEl.parentElement.style.removeProperty("top")
         }
       }
-      setImgFullWidth(imgEl);
-      imgEl.style.position = "relative";
-      imgEl.style.top = `-${pagePadding.value}px`;
-      if (imgEl.tagName == "image") {
-        imgEl.parentElement.style.position = "relative";
-        imgEl.parentElement.style.top = `-${pagePadding.value}px`;
-      }
 
-      if (options.value.pageDirection == "rtl") {
-        imgEl.style.left = `-${width.value / 2 + pagePadding.value}px`
+      if (factReadingMode.value != READING_MODE_SCROLL) {
+        setImgFullWidth(imgEl);
+        imgEl.style.position = "relative";
+        imgEl.style.top = `-${pagePadding.value}px`;
+        imgEl.style.left = `-${pagePadding.value}px`;
         if (imgEl.tagName == "image") {
-          imgEl.parentElement.style.left = `-${width.value / 2 + pagePadding.value}px`
+          imgEl.parentElement.style.position = "relative";
+          imgEl.parentElement.style.top = `-${pagePadding.value}px`;
+          imgEl.parentElement.style.left = `-${pagePadding.value}px`;
+        }
+
+        if (options.value.pageDirection == "rtl") {
+          imgEl.style.left = `-${width.value / 2 + pagePadding.value}px`
+          if (imgEl.tagName == "image") {
+            imgEl.parentElement.style.left = `-${width.value / 2 + pagePadding.value}px`
+          }
+        }
+      } else {
+        imgEl.style.position = "relative";
+        imgEl.style.left = `-${pagePadding.value}px`;
+        if (imgEl.tagName == "image") {
+          imgEl.parentElement.style.position = "relative";
+          imgEl.parentElement.style.left = `-${pagePadding.value}px`;
         }
       }
     }
@@ -555,13 +572,34 @@ async function getResource(curFilePath, src, type = "blobUrl") {
     const content = await file.async("string");
     return content;
   } else if (type == "blob") {
-    const blob = await file.async("blob");
-    return blob;
+    const rawBlob = await file.async("blob");
+    const typedBlob = new Blob([rawBlob], {
+      type: getMimeType(src)
+    })
+    return typedBlob;
   } else {
-    const blob = await file.async("blob");
-    const blobUrl = URL.createObjectURL(blob);
+    const rawBlob = await file.async("blob");
+    const typedBlob = new Blob([rawBlob], {
+      type: getMimeType(src)
+    })
+    const blobUrl = URL.createObjectURL(typedBlob);
     return blobUrl;
   }
+}
+
+function getMimeType(filename) {
+  const ext = filename.split('.').pop().toLowerCase()
+
+  const map = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+  }
+
+  return map[ext] || "application/octet-stream"
 }
 
 //进度加载器
@@ -589,7 +627,9 @@ const emit = defineEmits(["update:totalPages"])
 //现在在满足所有需求的条件下，只有一个情况真正用得上滚动监听器：
 //也就是竖屏模式，竖屏模式以外的模式滚动监听器开不开都一样
 function updatePagesParams(scrollInfo) {
-  if (bus.pageChangeByInput) {
+  readProcess.value = getCurProcess(scrollInfo);
+  if (bus.changePageByInput) {
+    // bus.changePageByInput = false
     return
   }
   console.log("滚动信息：", {
@@ -599,8 +639,6 @@ function updatePagesParams(scrollInfo) {
     scrollHeight: scrollInfo.scrollHeight,
     viewerWidth: scrollInfo.clientWidth,
   })
-  //直接更新页码时（滚动时）禁止页码监听
-  // scrollWatched.value = true
   if (factReadingMode.value != READING_MODE_SCROLL) {
     totalPages.value = Math.ceil(scrollInfo.scrollWidth / (width.value / 2));
     emit("update:totalPages", totalPages.value)
@@ -611,7 +649,6 @@ function updatePagesParams(scrollInfo) {
     } else {
       currentPage.value = Math.ceil((scrollInfo.scrollLeft + 1) / (width.value / 2));
     }
-    readProcess.value = getCurProcess(scrollInfo);
   } else {
     totalPages.value = Math.ceil(scrollInfo.scrollHeight / height.value);
     emit("update:totalPages", totalPages.value)
@@ -626,7 +663,6 @@ function updatePagesParams(scrollInfo) {
 //更新页码直接来源于：进度条拖拽、next/prePage函数（按钮或点击翻页）、updatePagesParams函数
 // const currentPageWatched=ref(false)
 watch(currentPage, () => {
-
   console.log("页码变化，新的页码：", currentPage.value);
   if (currentPage.value < 1) {
     currentPage.value = 1;
@@ -634,16 +670,11 @@ watch(currentPage, () => {
     console.log("页码超过总页数，调整到最后一页");
     currentPage.value = totalPages.value;
   }
-  if (isScrolling.value) {
-    //正在滚动且滚动来自用户
+  console.log("当前页码变更是否来自控件：", bus.changePageByInput)
+  if (!bus.changePageByInput) {
     return
   }
-  /* if(bus.pageChangeByInput){
-    return
-  } */
   /*
-    bus.pageChangeByInput=false
-
   如何识别拖条滚动？草？气晕了
   使用封装方法的方式或手动修改页面翻页是机器滚动，
   滚动鼠标滚轮是用户滚动
@@ -913,6 +944,7 @@ function isImgIllus(imgEl) {
     isIllus = (Math.abs(imgEl.scrollHeight - height.value + pagePadding.value * 2) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2 + pagePadding.value * 2) <= 10);
     console.log("imgEl.scrollWidth:", imgEl.scrollWidth, ";width/2:", width.value / 2, ";pagePadding:", pagePadding.value)
     console.log("判定结果：", isIllus)
+    console.log("img标签：", imgEl)
     if (!isIllus) {
       isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
     }
@@ -1004,7 +1036,7 @@ const content = defineModel("content", {
   default: () => []
 });//目录数据，格式[{title:"章节1",index:0},]
 
-
+import cursor from "@/assets/icons/cursor.png"
 async function onIframeLoad(index, event, isReLoad = false) {
   if (index != 0 && (width.value == 0 || height.value == 0)) {
     console.warn(`加载章节${index}时阅读器尺寸未确定，将延后加载`);
@@ -1046,6 +1078,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
         iframe {
           display: block;
           min-width: ${width.value / 2}px;
+          // min-height:${options.value.compatibleMode ? height.value + "px" : "none"};
+          height:${height.value}px;
         }
       `
     } else {
@@ -1074,8 +1108,9 @@ async function onIframeLoad(index, event, isReLoad = false) {
   if (factReadingMode.value == READING_MODE_SCROLL) {
     pageStyleEl.textContent = `
       body {
+        cursor: url(${cursor}) 16 16, auto;
         margin:0;
-        padding:0 ${pagePadding.value};
+        padding:0 ${pagePadding.value}px;
         box-sizing: border-box;
         width: ${width.value / 2}px;
         overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
@@ -1092,6 +1127,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   } else {
     pageStyleEl.textContent = `
       body {
+        cursor: url(${cursor}) 16 16, auto;
         margin:0 ${pagePadding.value}px;
         padding:0;
         box-sizing: border-box;
@@ -1122,6 +1158,7 @@ async function onIframeLoad(index, event, isReLoad = false) {
   doc.head.append(pageStyleEl);
   //这样追加的style在原样式后，会覆盖原有样式
 
+
   /*
   这里是一个插画页判断逻辑，img标签如果高度接近阅读器高度，就认为是插画页；
   svg标签则是作者指定会设置svg宽度/高度100%的情况
@@ -1138,6 +1175,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
           parent.style.position = "relative";
           if (factReadingMode.value != READING_MODE_SCROLL) {
             parent.style.top = `-${pagePadding.value}px`;
+          } else {
+            parent.style.removeProperty("top");
           }
           parent.style.left = `-${pagePadding.value}px`;
           return
@@ -1146,6 +1185,8 @@ async function onIframeLoad(index, event, isReLoad = false) {
       imgEl.style.position = "relative";
       if (factReadingMode.value != READING_MODE_SCROLL) {
         imgEl.style.top = `-${pagePadding.value}px`;
+      } else {
+        imgEl.style.removeProperty("top");
       }
       imgEl.style.left = `-${pagePadding.value}px`;
     }
@@ -1164,8 +1205,10 @@ async function onIframeLoad(index, event, isReLoad = false) {
     }
     if (factReadingMode.value != READING_MODE_SCROLL) {
       svgEl.style.top = `-${pagePadding.value}px`
-      svgEl.style.left = `-${pagePadding.value}px`
+    } else {
+      svgEl.style.removeProperty("top")
     }
+    svgEl.style.left = `-${pagePadding.value}px`
     svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
   });
 
@@ -1289,14 +1332,22 @@ async function onIframeLoad(index, event, isReLoad = false) {
 
   //滚动模式下让所有iframe的高度都适应内容高度，防止出现竖向滚动条
   if (factReadingMode.value == READING_MODE_SCROLL) {
+    // await new Promise(resolve => {
     setTimeout(() => {
       chapterEl.style.height = "auto";//先清空旧的高度设置
       const heightValue = doc.body.scrollHeight;
+      console.log("准备适应body高度,", heightValue)
+
+      // chapterEl.style.removeProperty("min-height");
       chapterEl.style.height = heightValue + "px";
       chapterEl.style.width = `${width.value / 2}px`;
+      console.log("已给值：", chapterEl.style.height)
       iframeHeightList.value[index] = heightValue
+      // resolve()
     }, transitionDuration + 100);
     //这里的目的是防止动画导致的高度计算错误，等动画结束后再设置成内容高度
+    // }
+    // )
   }
 
   //处理超链接
@@ -1373,8 +1424,12 @@ async function onIframeLoad(index, event, isReLoad = false) {
   //处理文档注释点击和翻页点击
   doc.addEventListener("click", (e) => {
     //除了注释以外的地方点击都隐藏注释卡片
-    if (!(e.target.closest("a[epub\\:type='noteref'],a.duokan-footnote")))
+    if (!(e.target.closest("a[epub\\:type='noteref'],a.duokan-footnote"))) {
       hideAllNoteCards();
+    }
+    if (e.target.closest("a[epub\\:type='noteref'],a.duokan-footnote")) {
+      return
+    }
     //处理点击翻页
     if (!isClickToTurnPageEnabled.value) {
       return;
@@ -1493,8 +1548,8 @@ async function loadViewer() {
 async function resolveXhtmlResource(xhtml, curFilePath) {
   //资源类型列表
   const parseList = [
-    { selection: "img", attrName: "src" },
-    { selection: "image", attrName: "xlink:href" },
+    { selection: "img", attrName: "src", type: "image/png" },
+    { selection: "image", attrName: "xlink:href", type: "image/png" },
     options.value.loadJsEnabled ? { selection: "script", attrName: "src" } : null,
     { selection: "link[rel='stylesheet']", attrName: "href", type: "text/css", postProcess: resolveCssResource },
   ]
@@ -1535,7 +1590,7 @@ async function resolveXhtmlResource(xhtml, curFilePath) {
           try {
             // console.log(`获取并后处理${item.type}资源：`, attrValue);
             const newValue = await item.postProcess(await getResource(curFilePath, attrValue, "string"), relativePathToAbsolutePath(curFilePath, attrValue), curFilePath);
-            const blobUrl = URL.createObjectURL(new Blob([newValue], { type: 'text/css' }));
+            const blobUrl = URL.createObjectURL(new Blob([newValue], { type: item.type }));
             blobResourceCache.value.set(relativePathToAbsolutePath(curFilePath, attrValue), blobUrl);
             //需要后处理最好缓存起来，省得在处理css时重复获取资源
             el.setAttribute(item.attrName, blobUrl);
@@ -1737,6 +1792,10 @@ watch(() => bus.curReadOptions, async (newOptions) => {
   //尺寸重加载逻辑
   setViewerSize();//重写计算factReadingMode和viewerRef的尺寸
   viewerRef.value.style.backgroundColor = options.value.backgroundColor;
+  if (options.value.clickToFlipEnabled) {
+    // console.log("光标测试")
+    viewerRef.value.style.cursor = 'url("@/assets/icons/cursor.svg")'
+  }
   reLoadViewer();
 },
   { deep: true }
@@ -1789,17 +1848,17 @@ const iframeScrollEnabled = computed(() => {
 </script>
 <template>
   <div ref="wapperRef" class="fitWapper">
+    <div ref="viewerRef" class="viewer">
+      <!-- <h1>{{ metadata.title }}</h1> -->
+      <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
+        :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
+    </div>
     <template v-for="(noteCard, index) in noteCards" :key="index">
       <!-- 当v-for和v-if同时使用时，最好在外面套一层template，防止v-if拿不到noteCard -->
       <NoteCard v-if="noteCard?.isShow" :noteRefRect="noteCard.noteRefRect">
         <div v-html="noteCard.note.outerHTML"></div>
       </NoteCard>
     </template>
-    <div ref="viewerRef" class="viewer">
-      <!-- <h1>{{ metadata.title }}</h1> -->
-      <iframe @click="hideAllNoteCards" :id="spineFiles[index]" ref="chaptersRef" v-for="(chapter, index) in chapters"
-        :key="index" class="xhtml" :src="chapter" @load="onIframeLoad(index, $event)"></iframe>
-    </div>
   </div>
 </template>
 <style scoped lang="less">

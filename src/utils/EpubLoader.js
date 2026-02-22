@@ -41,25 +41,28 @@ async function loadSpineAndInfos(zip) {
 
   const doc = parser.parseFromString(coverHtml, "text/html");
   const imgElem = doc.querySelectorAll("img,image")[0]
-
   let coverBase64 = "";
-  let imgSrc = imgElem.getAttribute("src") || imgElem.getAttribute("xlink:href");
-  if (!imgSrc) return;
-  //转换为绝对路径
-  imgSrc = relativePathToAbsolutePath(coverPath, imgSrc)
-  console.log("封面图片路径：", imgSrc);
-  const imgFile = zip.file(imgSrc);
-  if (!imgFile) {
-    console.warn("封面图片资源未找到：", imgSrc);
-    return;
+  if (imgElem) {
+    let imgSrc = imgElem.getAttribute("src") || imgElem.getAttribute("xlink:href");
+    if (imgSrc) {
+      //转换为绝对路径
+      imgSrc = relativePathToAbsolutePath(coverPath, imgSrc)
+      console.log("封面图片路径：", imgSrc);
+      const imgFile = zip.file(imgSrc);
+      if (!imgFile) {
+        console.warn("封面图片资源未找到：", imgSrc);
+      } else {
+        await imgFile.async("base64").then(base64Data => {
+          // console.log("封面图片Base64数据加载完成", base64Data.length);
+          let mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
+          if (!mimeType) mimeType = "image/png"
+          const dataUrl = `data:${mimeType};base64,${base64Data}`;
+          coverBase64 = dataUrl;
+        });
+      }
+    }
   }
-  await imgFile.async("base64").then(base64Data => {
-    // console.log("封面图片Base64数据加载完成", base64Data.length);
-    let mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
-    if(!mimeType) mimeType="image/png"
-    const dataUrl = `data:${mimeType};base64,${base64Data}`;
-    coverBase64 = dataUrl;
-  });
+
   // console.log("封面图片加载完成,数据量：", coverBase64.length);
 
   //获取书籍信息
