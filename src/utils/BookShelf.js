@@ -50,7 +50,7 @@ export class BookShelf {
       }
       request.onerror = (error) => {
         reject(error)
-        error=error.target.error
+        error = error.target.error
 
         if (error?.name === "QuotaExceededError") {
           alert("存储空间不足或浏览器存储配额已满，请清理磁盘或浏览器数据后重试。")
@@ -86,12 +86,23 @@ export class BookShelf {
     putReq.onerror = (e) => console.error('metadata put error:', putReq.error || e)
     const tx2 = this.db.transaction("binary", "readwrite")
     const binaryStore = tx2.objectStore("binary")
+    console.log("准备存放书籍本体：", book.arrayBuffer)
     const binReq = binaryStore.put({
       hashCode: book.hashCode,
       binary: book.arrayBuffer
     })
-    binReq.onsuccess = () => { }
-    binReq.onerror = (e) => console.error('binary put error:', binReq.error || e)
+    binReq.onsuccess = () => {
+      console.log("书籍本体存放成功")
+    }
+    binReq.onerror = (e) => {
+      console.error('binary put error:', binReq.error || e)
+      console.log("书籍存放失败")
+    }
+    tx2.onabort = () => {
+      console.error("事务中止:", tx2.error,"错误名:", tx2.error?.name,"错误信息:", tx2.error?.message);
+      // 直接抛到页面
+      alert(`事务中止: ${tx2.error?.name}\n${tx2.error?.message}`);
+    }
   }
 
   removeBook(book) {

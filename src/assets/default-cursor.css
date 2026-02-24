@@ -1,0 +1,40 @@
+/* 1️⃣ 可点击元素 → 手型 */
+a,
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+summary,
+label {
+  cursor: pointer;
+}
+
+/* 2️⃣ 文本输入类 → 文本光标 */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+textarea {
+  cursor: text;
+}
+
+/* 3️⃣ 可编辑区域 */
+[contenteditable="true"] {
+  cursor: text;
+}
+
+/* 4️⃣ 拖拽元素 */
+[draggable="true"] {
+  cursor: grab;
+}
+
+/* 5️⃣ 禁用元素 */
+:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* 6️⃣ 细节：缩放类（如果你有） */
+[data-zoom] {
+  cursor: zoom-in;
+}

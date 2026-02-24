@@ -28,39 +28,53 @@ async function loadSpineAndInfos(zip) {
   const coverReference = opfDoc.querySelector("reference[type='cover']")
   let coverPath = "";
   if (coverReference) {
-    coverPath = rootDir + (rootDir ? "/" : "") + coverReference.getAttribute("href");
+    coverPath = rootDir + (rootDir ? "/" : "") + coverReference.getAttribute("href");//这拿到的就是封面文件本身(.jpg)
   } else {
     coverPath = rootDir + (rootDir ? "/" : "") + spineFiles[0];
   }
   console.log("封面章节路径：", coverPath);
-  const coverFile = zip.file(coverPath)//这里拿到cover.html或者cover.xhtml
-  let coverHtml = await coverFile.async("string")
-  coverHtml = coverHtml.replace(/^\uFEFF/gi, "")
-    .replace(/&#65279;/gi, "")
-    .replace(/&#xFEFF;/gi, "");; //去掉BOM头
-
-  const doc = parser.parseFromString(coverHtml, "text/html");
-  const imgElem = doc.querySelectorAll("img,image")[0]
+  const coverFile = zip.file(coverPath)//这里拿到cover.html或者cover.xhtml或者cover.jpg
   let coverBase64 = "";
-  if (imgElem) {
-    let imgSrc = imgElem.getAttribute("src") || imgElem.getAttribute("xlink:href");
-    if (imgSrc) {
-      //转换为绝对路径
-      imgSrc = relativePathToAbsolutePath(coverPath, imgSrc)
-      console.log("封面图片路径：", imgSrc);
-      const imgFile = zip.file(imgSrc);
-      if (!imgFile) {
-        console.warn("封面图片资源未找到：", imgSrc);
-      } else {
-        await imgFile.async("base64").then(base64Data => {
-          // console.log("封面图片Base64数据加载完成", base64Data.length);
-          let mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
-          if (!mimeType) mimeType = "image/png"
-          const dataUrl = `data:${mimeType};base64,${base64Data}`;
-          coverBase64 = dataUrl;
-        });
+  console.log("后缀名：",coverPath.split(".").pop()?.toLowerCase())
+  if (["xhtml", "html", "xml"].includes(coverPath.split(".").pop()?.toLowerCase())) {
+    let coverHtml = await coverFile.async("string")
+    coverHtml = coverHtml.replace(/^\uFEFF/gi, "")
+      .replace(/&#65279;/gi, "")
+      .replace(/&#xFEFF;/gi, "");; //去掉BOM头
+    // console.log("coverHTML:", coverHtml)
+    const doc = parser.parseFromString(coverHtml, "text/html");
+    const imgElem = doc.querySelectorAll("img,image")[0]
+    if (imgElem) {
+      let imgSrc = imgElem.getAttribute("src") || imgElem.getAttribute("xlink:href");
+      if (imgSrc) {
+        //转换为绝对路径
+        imgSrc = relativePathToAbsolutePath(coverPath, imgSrc)
+        console.log("封面图片路径：", imgSrc);
+        const imgFile = zip.file(imgSrc);
+        if (!imgFile) {
+          console.warn("封面图片资源未找到：", imgSrc);
+        } else {
+          await imgFile.async("base64").then(base64Data => {
+            // console.log("封面图片Base64数据加载完成", base64Data.length);
+            let mimeType = imgFile._data.compressedSize ? imgFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
+            if (!mimeType) mimeType = "image/png"
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
+            coverBase64 = dataUrl;
+          });
+        }
       }
+    } else {
+
     }
+
+  } else {
+    await coverFile.async("base64").then(base64Data => {
+      // console.log("封面图片Base64数据加载完成", base64Data.length);
+      let mimeType = coverFile._data.compressedSize ? coverFile._data.uncompressedContentType : "image/png"; //简单判断mimeType
+      if (!mimeType) mimeType = "image/png"
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      coverBase64 = dataUrl;
+    });
   }
 
   // console.log("封面图片加载完成,数据量：", coverBase64.length);

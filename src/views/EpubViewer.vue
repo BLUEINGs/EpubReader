@@ -14,6 +14,11 @@ import ChapterNotFound from "./ChapterNotFound.html?raw";
 import WatchImgDialog from "@/components/dialogs/WatchImgDialog.vue";
 //?raw是把html文件作为字符串导入
 
+import cursor from "@/assets/icons/cursor.png"
+import cursorLeft from "@/assets/icons/cursor-left.png"
+import cursorRight from "@/assets/icons/cursor-right.png"
+import "@/assets/default-cursor.css"
+
 const route = useRoute()
 
 /*
@@ -940,11 +945,11 @@ function isImgIllus(imgEl) {
     isIllus = (parent.getAttribute("width") == "100%" || parent.style.width == "100%"
       || parent.getAttribute("height") == "100%" || parent.style.height == "100%")
   } else {
-    console.log("加入判断")
+    // console.log("加入判断")
     isIllus = (Math.abs(imgEl.scrollHeight - height.value + pagePadding.value * 2) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2 + pagePadding.value * 2) <= 10);
-    console.log("imgEl.scrollWidth:", imgEl.scrollWidth, ";width/2:", width.value / 2, ";pagePadding:", pagePadding.value)
-    console.log("判定结果：", isIllus)
-    console.log("img标签：", imgEl)
+    // console.log("imgEl.scrollWidth:", imgEl.scrollWidth, ";width/2:", width.value / 2, ";pagePadding:", pagePadding.value)
+    // console.log("判定结果：", isIllus)
+    // console.log("img标签：", imgEl)
     if (!isIllus) {
       isIllus = (Math.abs(imgEl.scrollHeight - height.value) <= 10) || (Math.abs(imgEl.scrollWidth - width.value / 2) <= 10);
     }
@@ -1036,7 +1041,7 @@ const content = defineModel("content", {
   default: () => []
 });//目录数据，格式[{title:"章节1",index:0},]
 
-import cursor from "@/assets/icons/cursor.png"
+
 async function onIframeLoad(index, event, isReLoad = false) {
   if (index != 0 && (width.value == 0 || height.value == 0)) {
     console.warn(`加载章节${index}时阅读器尺寸未确定，将延后加载`);
@@ -1105,7 +1110,6 @@ async function onIframeLoad(index, event, isReLoad = false) {
   if (factReadingMode.value == READING_MODE_SCROLL) {
     pageStyleEl.textContent = `
       body {
-        cursor: ${isClickToTurnPageEnabled.value ? "url(" + cursor + ") 16 16" : "auto"}, auto;
         margin:0;
         padding:0 ${pagePadding.value}px;
         box-sizing: border-box;
@@ -1124,18 +1128,18 @@ async function onIframeLoad(index, event, isReLoad = false) {
   } else {
     pageStyleEl.textContent = `
       body {
-        cursor: ${isClickToTurnPageEnabled.value ? "url(" + cursor + ") 16 16" : "auto"}, auto;
-        margin:0 ${pagePadding.value}px;
-        padding:0;
+        margin:0 ${pagePadding.value}px !important;
+        padding-left:0;
+        padding-right:0;
         box-sizing: border-box;
-        width: ${width.value / 2 - pagePadding.value * 2}px;
-        height: ${height.value}px;
-        column-fill: auto;
-        column-gap: ${pagePadding.value * 2}px;
-        column-width: ${width.value / 2 - pagePadding.value * 2}px;
+        width: ${width.value / 2 - pagePadding.value * 2}px !important;
+        height: ${height.value}px !important;
+        column-fill: auto !important;
+        column-gap: ${pagePadding.value * 2}px !important;
+        column-width: ${width.value / 2 - pagePadding.value * 2}px !important;
         padding-top:${pagePadding.value}px;
         padding-bottom:${pagePadding.value}px;
-        overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"};
+        overflow: ${iframeScrollEnabled.value ? "scroll" : "hidden"} !important;
         font-size:${options.value.fontSize}px;
       }
       svg,img,image{
@@ -1453,6 +1457,46 @@ async function onIframeLoad(index, event, isReLoad = false) {
       }
     }
   })
+
+  //处理翻页鼠标图标
+  doc.addEventListener("mousemove", (e) => {
+    const html = doc.documentElement
+    const target = e.target
+    // console.log("target:", target)
+    // console.log("target.closet:", target.closest("img, svg"))
+    if (!(
+      target === doc.body ||
+      target.closest("img, svg")
+    )) {
+      html.style.cursor = "auto"
+      return
+    }
+
+    const clickX = iframe.getBoundingClientRect().left + e.clientX
+    if (clickX < window.innerWidth / 2) {
+      html.style.cursor = `url(${cursorLeft}) 16 16 ,pointer`;
+    } else {
+      html.style.cursor = `url(${cursorRight}) 16 16 ,auto`;
+    }
+    //逻辑应该没问题
+  })
+
+  if (isReLoad) {
+    const link = doc.querySelector("link[default-cursor-style]");
+    if (link) {
+      link.remove()
+    }
+  }
+
+  const link = doc.createElement("link")
+  link.rel = "stylesheet"
+  link.href = new URL(
+    "@/assets/default-cursor.css",
+    import.meta.url
+  ).href
+  link.setAttribute("default-cursor-style", "")
+
+  doc.head.appendChild(link)
 
   //处理文档键盘翻页事件
   doc.addEventListener("keydown", (e) => {
